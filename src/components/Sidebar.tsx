@@ -30,7 +30,7 @@ export default function Sidebar() {
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-40 px-4 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-2 font-bold text-blue-600">
           <Shield size={24} />
-          <span>CONTRACT CRM</span>
+          <span>QUẢN LÝ HỢP ĐỒNG HNG</span>
         </div>
         <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-slate-600">
           {isOpen ? <X size={24} /> : <Menu size={24} />}
