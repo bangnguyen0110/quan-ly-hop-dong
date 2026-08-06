@@ -57,3 +57,34 @@ export interface Contracts {
   category?: Category;
   created_at?: string;
 }
+
+export interface TelegramSettings {
+  id?: string;
+  bot_token: string;
+  chat_id: string;
+  is_active: boolean;
+  message_template?: string;
+  updated_at?: string;
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  created_at?: string;
+}
+
+export interface Contract {
+  id: string;
+  title: string;
+  contract_code?: string;
+  party_a?: string;
+  party_b?: string;
+  value: number;
+  end_date: string;
+  file_url?: string;
+  status: string;
+  custom_notify_days: number[];
+  category_id?: string;
+  category?: Category;
+  created_at?: string;
+}

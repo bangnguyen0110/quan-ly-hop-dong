@@ -1,231 +1,264 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import { Save, Send, CheckCircle, XCircle, X } from "lucide-react";
-
-interface TelegramSettings {
-  id?: string; // Supabase will auto-generate if not provided
-  bot_token: string;
-  chat_id: string;
-  is_active: boolean;
-}
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { Bot, Save, Send, CheckCircle2, AlertCircle, Info } from 'lucide-react';
 
 export default function TelegramPage() {
-  const [settings, setSettings] = useState<TelegramSettings>({
-    bot_token: "",
-    chat_id: "",
-    is_active: false,
-  });
+  const [botToken, setBotToken] = useState('');
+  const [chatId, setChatId] = useState('');
+  const [isActive, setIsActive] = useState(true);
+  const [messageTemplate, setMessageTemplate] = useState('');
   const [loading, setLoading] = useState(true);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-  const [feedbackType, setFeedbackType] = useState<"success" | "error" | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  
+  const defaultTemplate = `🔔 *CẢNH BÁO HỢP ĐỒNG SẮP HẾT HẠN*
+
+📜 *Tên HĐ:* {ten_hd}
+🏷️ *Mã HĐ:* {ma_hd}
+👥 *Đối tác:* {doi_tac}
+💰 *Giá trị:* {gia_tri} VNĐ
+⏳ *Thời gian còn lại:* {ngay_con_lai} ngày
+📅 *Ngày hết hạn:* {ngay_het_han}
+📎 *File đính kèm:* {link_file}`;
+
   useEffect(() => {
     fetchSettings();
   }, []);
 
   const fetchSettings = async () => {
-    setLoading(true);
-    setFeedbackMessage(null);
-    setFeedbackType(null);
     try {
-      const { data, error } = await supabase
-        .from("telegram_settings")
-        .select("*")
-        .single(); // Assuming only one row for settings
-
-      if (error && error.code !== "PGRST116") { // PGRST116 means no rows found
-        throw error;
-      }
+      setLoading(true);
+      const { data } = await supabase.from('telegram_settings').select('*').limit(1).maybeSingle();
       if (data) {
-        setSettings(data);
+        setBotToken(data.bot_token || '');
+        setChatId(data.chat_id || '');
+        setIsActive(data.is_active ?? true);
+        setMessageTemplate(data.message_template || defaultTemplate);
+      } else {
+        setMessageTemplate(defaultTemplate);
       }
     } catch (err: any) {
-      setFeedbackMessage(err.message || "Failed to fetch settings.");
-      setFeedbackType("error");
+      console.error('Lỗi lấy cấu hình:', err);
     } finally {
       setLoading(false);
     }
   };
 
-    const handleSaveSettings = async () => {
-    setLoading(true);
-    setFeedbackMessage(null);
-    setFeedbackType(null);
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setStatusMsg(null);
+
     try {
-      const { data, error } = await supabase
-        .from("telegram_settings")
-        .upsert({
-          id: settings.id, // Include ID for update, will be ignored for new insert
-          bot_token: settings.bot_token,
-          chat_id: settings.chat_id,
-          is_active: settings.is_active,
-        }, { onConflict: 'id' })
-        .select()
-        .single();
+      const { data: existing } = await supabase.from('telegram_settings').select('id').limit(1).maybeSingle();
 
-      if (error) throw error;
+      const payload = {
+        bot_token: botToken.trim(),
+        chat_id: chatId.trim(),
+        is_active: isActive,
+        message_template: messageTemplate,
+        updated_at: new Date().toISOString(),
+      };
 
-      setSettings(data);
-      setFeedbackMessage("Cấu hình Telegram đã được lưu thành công!");
-      setFeedbackType("success");
+      if (existing?.id) {
+        await supabase.from('telegram_settings').update(payload).eq('id', existing.id);
+      } else {
+        await supabase.from('telegram_settings').insert([payload]);
+      }
+
+      setStatusMsg({ type: 'success', text: 'Lưu cấu hình Telegram thành công!' });
     } catch (err: any) {
-      setFeedbackMessage(err.message || "Lưu cấu hình thất bại.");
-      setFeedbackType("error");
+      setStatusMsg({ type: 'error', text: 'Lỗi khi lưu: ' + err.message });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleSendTestMessage = async () => {
-    if (!settings.bot_token || !settings.chat_id) {
-      setFeedbackMessage("Vui lòng nhập Bot Token và Chat ID trước.");
-      setFeedbackType("error");
+  // Nút gửi thử tin nhắn
+  const handleTestNotification = async () => {
+    if (!botToken || !chatId) {
+      alert('Vui lòng nhập Bot Token và Chat ID trước khi thử nghiệm!');
       return;
     }
 
-    setLoading(true);
-    setFeedbackMessage(null);
-    setFeedbackType(null);
+    setTesting(true);
     try {
-      const message = "Tin nhắn kiểm tra từ CONTRACT AI!";
-      const response = await fetch(
-        `https://api.telegram.org/bot${settings.bot_token}/sendMessage`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            chat_id: settings.chat_id,
-            text: message,
-          }),
-        }
-      );
-      const data = await response.json();
+      const testText = messageTemplate
+        .replace(/{ten_hd}/g, 'Hợp đồng Dịch vụ CNTT mẫu')
+        .replace(/{ma_hd}/g, 'HD-2026-TEST')
+        .replace(/{doi_tac}/g, 'Công ty TNHH Mẫu')
+        .replace(/{gia_tri}/g, '100.000.000')
+        .replace(/{ngay_con_lai}/g, '7')
+        .replace(/{ngay_het_han}/g, '2026-12-31')
+        .replace(/{link_file}/g, 'https://example.com/sample.pdf');
 
-      if (!response.ok || !data.ok) {
-        throw new Error(data.description || "Không thể gửi tin nhắn thử.");
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `[TIN NHẮN THỬ NGHIỆM]\n\n${testText}`,
+          parse_mode: 'Markdown',
+        }),
+      });
+
+      const resData = await res.json();
+      if (resData.ok) {
+        alert('Gửi tin nhắn thử nghiệm thành công! Hãy kiểm tra ứng dụng Telegram.');
+      } else {
+        alert('Lỗi từ Telegram API: ' + resData.description);
       }
-
-      setFeedbackMessage("Tin nhắn thử đã được gửi thành công!");
-      setFeedbackType("success");
     } catch (err: any) {
-      setFeedbackMessage(err.message || "Gửi tin nhắn thử thất bại.");
-      setFeedbackType("error");
+      alert('Không thể kết nối Telegram: ' + err.message);
     } finally {
-      setLoading(false);
+      setTesting(false);
     }
   };
-  
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen text-gray-600">
-        Đang tải cấu hình...
-      </div>
-    );
-  }
 
   return (
-    <div className="container mx-auto p-4">
-      <header className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Cấu hình Telegram Bot</h1>
-      </header>
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
+        <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+          <Bot size={32} />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Cấu Hình Telegram Bot</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Tự động gửi thông báo đến Telegram khi hợp đồng sắp hết hạn
+          </p>
+        </div>
+      </div>
 
-      {feedbackMessage && (
+      {statusMsg && (
         <div
-          className={`flex items-center justify-between p-4 mb-6 rounded-lg shadow-md ${feedbackType === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
-          role="alert"
+          className={`p-4 rounded-xl text-xs flex items-center gap-2 ${
+            statusMsg.type === 'success'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-red-50 text-red-700 border border-red-200'
+          }`}
         >
-          <div className="flex items-center space-x-3">
-            {feedbackType === "success" ? (
-              <CheckCircle className="w-6 h-6" />
-            ) : (
-              <XCircle className="w-6 h-6" />
-            )}
-            <p className="font-medium">{feedbackMessage}</p>
-          </div>
-          <button onClick={() => setFeedbackMessage(null)} className="text-current hover:opacity-75">
-            <X className="w-5 h-5" />
-          </button>
+          {statusMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+          {statusMsg.text}
         </div>
       )}
 
-      <div className="bg-white shadow-sm rounded-xl p-6 border border-gray-100 max-w-2xl mx-auto">
-        <div className="mb-4">
-          <label
-            htmlFor="bot_token"
-            className="block text-gray-700 text-sm font-semibold mb-2"
-          >
-            Bot Token
-          </label>
-          <input
-            type="text"
-            id="bot_token"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={settings.bot_token}
-            onChange={(e) =>
-              setSettings({ ...settings, bot_token: e.target.value })
-            }
-            placeholder="Nhập Bot Token của bạn"
-          />
-        </div>
+      {loading ? (
+        <div className="p-8 text-center text-slate-500 text-sm">Đang tải cấu hình...</div>
+      ) : (
+        <form onSubmit={handleSave} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80 space-y-6">
+          <div className="flex items-center justify-between border-b pb-4">
+            <span className="text-sm font-semibold text-slate-800">Trạng thái thông báo</span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isActive}
+                onChange={(e) => setIsActive(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
 
-        <div className="mb-4">
-          <label
-            htmlFor="chat_id"
-            className="block text-gray-700 text-sm font-semibold mb-2"
-          >
-            Chat ID
-          </label>
-          <input
-            type="text"
-            id="chat_id"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={settings.chat_id}
-            onChange={(e) =>
-              setSettings({ ...settings, chat_id: e.target.value })
-            }
-            placeholder="Nhập Chat ID của bạn"
-          />
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Bot Token *</label>
+              <input
+                type="text"
+                required
+                placeholder="123456789:ABCdefGhIJKlmNoPQ..."
+                value={botToken}
+                onChange={(e) => setBotToken(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-mono"
+              />
+            </div>
 
-        <div className="mb-6 flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="is_active"
-            className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-            checked={settings.is_active}
-            onChange={(e) =>
-              setSettings({ ...settings, is_active: e.target.checked })
-            }
-          />
-          <label htmlFor="is_active" className="text-gray-700 text-sm font-semibold">
-            Kích hoạt Bot
-          </label>
-        </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Chat ID *</label>
+              <input
+                type="text"
+                required
+                placeholder="-100123456789 hoặc 987654321"
+                value={chatId}
+                onChange={(e) => setChatId(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-mono"
+              />
+            </div>
+          </div>
 
-        <div className="flex justify-end space-x-3">
-          <button
-            onClick={handleSendTestMessage}
-            disabled={loading}
-            className="flex items-center space-x-2 px-5 py-2 bg-purple-600 text-white rounded-lg shadow hover:bg-purple-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Send className="w-5 h-5" />
-            <span>Gửi Tin Nhắn Thử</span>
-          </button>
-          <button
-            onClick={handleSaveSettings}
-            disabled={loading}
-            className="flex items-center space-x-2 px-5 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Save className="w-5 h-5" />
-            <span>Lưu Cấu Hình</span>
-          </button>
-        </div>
-      </div>
+          {/* Soạn Mẫu Câu Thông Báo */}
+          <div>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                Mẫu câu thông báo tùy biến (Hỗ trợ Markdown)
+              </label>
+              <button
+                type="button"
+                onClick={() => setMessageTemplate(defaultTemplate)}
+                className="text-xs text-blue-600 hover:underline"
+              >
+                Khôi phục mẫu mặc định
+              </button>
+            </div>
+            <textarea
+              rows={8}
+              value={messageTemplate}
+              onChange={(e) => setMessageTemplate(e.target.value)}
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-mono"
+            />
+          </div>
+
+          {/* Bảng Danh Sách Từ Khóa Thay Thế */}
+          <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-xl space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
+              <Info size={16} /> Danh sách từ khóa tự động điền (Copy dán vào mẫu trên):
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">{'{ten_hd}'}</code>
+              <span className="text-slate-600">Tên hợp đồng</span>
+
+              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">{'{ma_hd}'}</code>
+              <span className="text-slate-600">Mã hợp đồng</span>
+
+              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">{'{doi_tac}'}</code>
+              <span className="text-slate-600">Đối tác (Bên B)</span>
+
+              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">{'{gia_tri}'}</code>
+              <span className="text-slate-600">Giá trị hợp đồng</span>
+
+              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">{'{ngay_con_lai}'}</code>
+              <span className="text-slate-600">Số ngày còn lại</span>
+
+              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">{'{ngay_het_han}'}</code>
+              <span className="text-slate-600">Ngày hết hạn</span>
+
+              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">{'{link_file}'}</code>
+              <span className="text-slate-600">Link tải file hợp đồng</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={handleTestNotification}
+              disabled={testing}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition"
+            >
+              <Send size={16} /> {testing ? 'Đang gửi...' : 'Gửi thử tin nhắn qua Telegram'}
+            </button>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition shadow-md shadow-blue-600/20"
+            >
+              <Save size={16} /> {saving ? 'Đang lưu...' : 'Lưu Cấu Hình'}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }
