@@ -7,8 +7,8 @@ import {
   getCategories, createCategory, deleteCategory 
 } from '@/lib/contracts';
 import { 
-  FileText, Plus, Trash2, Download, CheckCircle, Clock, Search, 
-  Eye, Calendar, DollarSign, X, Filter, Tag, Pencil
+  FileText, Plus, Trash2, Download, Search, 
+  Eye, Calendar, DollarSign, X, Filter, Tag, Pencil, Bell
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -25,7 +25,7 @@ export default function HomePage() {
   const [showContractModal, setShowContractModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
-  const [editingContract, setEditingContract] = useState<Contract | null>(null); // State quản lý hợp đồng đang sửa
+  const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [uploading, setUploading] = useState(false);
 
   // Form State - Hợp Đồng
@@ -83,7 +83,7 @@ export default function HomePage() {
     setEndDate(contract.end_date || '');
     setCustomDays(contract.custom_notify_days?.join(', ') || '1, 7');
     setCategoryId(contract.category_id || '');
-    setFile(null); // Để trống nếu không tải file mới
+    setFile(null);
     setShowContractModal(true);
   };
 
@@ -100,7 +100,6 @@ export default function HomePage() {
       setUploading(true);
       let fileUrl = editingContract ? editingContract.file_url : '';
 
-      // Nếu người dùng chọn file mới thì upload file mới
       if (file) {
         fileUrl = await uploadContractFile(file);
       }
@@ -124,10 +123,8 @@ export default function HomePage() {
       };
 
       if (editingContract) {
-        // Cập nhật hợp đồng hiện tại
         await updateContract(editingContract.id, payload);
       } else {
-        // Tạo hợp đồng mới
         await createContract(payload);
       }
 
@@ -345,7 +342,8 @@ export default function HomePage() {
                   <th className="p-4">Đối tác (Bên B)</th>
                   <th className="p-4">Giá trị (VNĐ)</th>
                   <th className="p-4">Ngày hết hạn</th>
-                  <th className="p-4">Trạng thái hạn</th>
+                  <th className="p-4">Mốc báo trước</th>
+                  <th className="p-4">Trạng thái</th>
                   <th className="p-4 text-center">Thao tác</th>
                 </tr>
               </thead>
@@ -369,6 +367,11 @@ export default function HomePage() {
                       </td>
                       <td className="p-4 font-semibold text-slate-800">{c.end_date}</td>
                       <td className="p-4">
+                        <span className="bg-amber-50 text-amber-700 px-2.5 py-1 rounded-lg text-xs font-medium border border-amber-200">
+                          {c.custom_notify_days?.join(', ')} ngày
+                        </span>
+                      </td>
+                      <td className="p-4">
                         {daysLeft < 0 ? (
                           <span className="bg-red-100 text-red-700 px-2.5 py-1 rounded-lg text-xs font-semibold">
                             Đã hết hạn ({Math.abs(daysLeft)} ngày)
@@ -389,7 +392,6 @@ export default function HomePage() {
                       </td>
                       <td className="p-4 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          {/* Nút Xem Chi Tiết */}
                           <button
                             onClick={() => setSelectedContract(c)}
                             className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition"
@@ -397,8 +399,6 @@ export default function HomePage() {
                           >
                             <Eye size={18} />
                           </button>
-
-                          {/* Nút Chỉnh Sửa Hợp Đồng (MỚI) */}
                           <button
                             onClick={() => handleOpenEditModal(c)}
                             className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition"
@@ -406,7 +406,6 @@ export default function HomePage() {
                           >
                             <Pencil size={18} />
                           </button>
-
                           {c.file_url && (
                             <a
                               href={c.file_url}
@@ -521,6 +520,23 @@ export default function HomePage() {
                     className="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
+              </div>
+
+              {/* Ô NHẬP MỐC BÁO TRƯỚC (NẮM GIỮ TÍNH NĂNG THÔNG BÁO) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Mốc báo trước Telegram (số ngày, cách nhau bằng dấu phẩy)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: 1, 7, 15, 30"
+                  value={customDays}
+                  onChange={(e) => setCustomDays(e.target.value)}
+                  className="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500 font-mono"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Mặc định: 1, 7 (Hệ thống sẽ gửi Telegram khi hợp đồng còn đúng 1 ngày hoặc 7 ngày).
+                </p>
               </div>
 
               <div>
@@ -647,6 +663,15 @@ export default function HomePage() {
                     <p className="font-bold text-red-600">{selectedContract.end_date}</p>
                   </div>
                 </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 rounded-xl flex items-center justify-between">
+                <span className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+                  <Bell size={16} className="text-amber-500" /> Mốc gửi thông báo Telegram:
+                </span>
+                <span className="font-semibold text-amber-600">
+                  {selectedContract.custom_notify_days?.join(', ')} ngày
+                </span>
               </div>
 
               {selectedContract.file_url && (
