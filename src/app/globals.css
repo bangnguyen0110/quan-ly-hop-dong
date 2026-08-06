@@ -30,3 +30,6 @@ body {
 .flex-1.flex.flex-col {
     padding-left: 260px;
 }
+.bg-white.rounded-2xl.shadow-xl.border.border-slate-200\/80.max-w-md.w-full.p-8.space-y-6 {
+    padding: 20px;
+}
