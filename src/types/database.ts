@@ -42,7 +42,7 @@ export interface Category {
   created_at?: string;
 }
 
-export interface Contract {
+export interface Contracts {
   id: string;
   title: string;
   contract_code?: string;

@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import { Contract, Category } from '@/types/database';
 import { 
-  getContracts, createContract, uploadContractFile, deleteContract,
+  getContracts, createContract, updateContract, uploadContractFile, deleteContract,
   getCategories, createCategory, deleteCategory 
 } from '@/lib/contracts';
 import { 
   FileText, Plus, Trash2, Download, CheckCircle, Clock, Search, 
-  Eye, Calendar, DollarSign, X, Filter, Tag, AlertTriangle, Layers
+  Eye, Calendar, DollarSign, X, Filter, Tag, Pencil
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -25,6 +25,7 @@ export default function HomePage() {
   const [showContractModal, setShowContractModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
+  const [editingContract, setEditingContract] = useState<Contract | null>(null); // State quản lý hợp đồng đang sửa
   const [uploading, setUploading] = useState(false);
 
   // Form State - Hợp Đồng
@@ -71,13 +72,35 @@ export default function HomePage() {
     return Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  // Tạo Hợp đồng
-  const handleCreateContract = async (e: React.FormEvent) => {
+  // Mở Modal Chỉnh Sửa Hợp Đồng (Đổ dữ liệu cũ vào Form)
+  const handleOpenEditModal = (contract: Contract) => {
+    setEditingContract(contract);
+    setTitle(contract.title || '');
+    setContractCode(contract.contract_code || '');
+    setPartyA(contract.party_a || '');
+    setPartyB(contract.party_b || '');
+    setValue(contract.value || 0);
+    setEndDate(contract.end_date || '');
+    setCustomDays(contract.custom_notify_days?.join(', ') || '1, 7');
+    setCategoryId(contract.category_id || '');
+    setFile(null); // Để trống nếu không tải file mới
+    setShowContractModal(true);
+  };
+
+  // Mở Modal Thêm Mới
+  const handleOpenCreateModal = () => {
+    resetContractForm();
+    setShowContractModal(true);
+  };
+
+  // Lưu Hợp đồng (Xử lý cả THÊM MỚI và CẬP NHẬT)
+  const handleSubmitContract = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setUploading(true);
-      let fileUrl = '';
+      let fileUrl = editingContract ? editingContract.file_url : '';
 
+      // Nếu người dùng chọn file mới thì upload file mới
       if (file) {
         fileUrl = await uploadContractFile(file);
       }
@@ -87,7 +110,7 @@ export default function HomePage() {
         .map((d) => parseInt(d.trim()))
         .filter((d) => !isNaN(d));
 
-      await createContract({
+      const payload = {
         title,
         contract_code: contractCode,
         party_a: partyA,
@@ -98,13 +121,21 @@ export default function HomePage() {
         status: 'active',
         custom_notify_days: notifyDaysArray.length > 0 ? notifyDaysArray : [1, 7],
         category_id: categoryId || undefined,
-      });
+      };
+
+      if (editingContract) {
+        // Cập nhật hợp đồng hiện tại
+        await updateContract(editingContract.id, payload);
+      } else {
+        // Tạo hợp đồng mới
+        await createContract(payload);
+      }
 
       setShowContractModal(false);
       resetContractForm();
       fetchData();
     } catch (err: any) {
-      alert('Lỗi khi thêm hợp đồng: ' + err.message);
+      alert('Lỗi khi lưu hợp đồng: ' + err.message);
     } finally {
       setUploading(false);
     }
@@ -139,6 +170,7 @@ export default function HomePage() {
   };
 
   const resetContractForm = () => {
+    setEditingContract(null);
     setTitle('');
     setContractCode('');
     setPartyA('');
@@ -187,7 +219,7 @@ export default function HomePage() {
             <Tag size={16} /> Quản lý loại HĐ
           </button>
           <button
-            onClick={() => setShowContractModal(true)}
+            onClick={handleOpenCreateModal}
             className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 font-medium text-sm transition shadow-md shadow-blue-600/20"
           >
             <Plus size={18} /> Thêm hợp đồng
@@ -239,7 +271,6 @@ export default function HomePage() {
       {/* FILTER TABS & SEARCH BAR */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-4">
         <div className="flex flex-col md:flex-row justify-between gap-4">
-          {/* Tabs Lọc Hạn Hợp Đồng */}
           <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-medium">
             <button
               onClick={() => setFilterType('all')}
@@ -273,7 +304,6 @@ export default function HomePage() {
             </button>
           </div>
 
-          {/* Lọc Theo Loại Hợp Đồng */}
           <div className="flex items-center gap-2">
             <Filter size={16} className="text-slate-400" />
             <select
@@ -289,7 +319,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Ô Tìm Kiếm */}
         <div className="relative">
           <Search className="absolute left-3.5 top-3 text-slate-400" size={18} />
           <input
@@ -302,7 +331,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* DANH SÁCH BẢNG HỢP ĐỒNG */}
+      {/* BẢNG HỢP ĐỒNG */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-500 text-sm">Đang tải dữ liệu...</div>
@@ -360,6 +389,7 @@ export default function HomePage() {
                       </td>
                       <td className="p-4 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          {/* Nút Xem Chi Tiết */}
                           <button
                             onClick={() => setSelectedContract(c)}
                             className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition"
@@ -367,6 +397,16 @@ export default function HomePage() {
                           >
                             <Eye size={18} />
                           </button>
+
+                          {/* Nút Chỉnh Sửa Hợp Đồng (MỚI) */}
+                          <button
+                            onClick={() => handleOpenEditModal(c)}
+                            className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition"
+                            title="Chỉnh sửa hợp đồng"
+                          >
+                            <Pencil size={18} />
+                          </button>
+
                           {c.file_url && (
                             <a
                               href={c.file_url}
@@ -396,58 +436,14 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* MODAL QUẢN LÝ LOẠI HỢP ĐỒNG */}
-      {showCategoryModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
-            <div className="flex justify-between items-center border-b pb-3">
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Tag size={18} className="text-blue-600" /> Quản Lý Loại Hợp Đồng
-              </h2>
-              <button onClick={() => setShowCategoryModal(false)} className="text-slate-400 hover:text-slate-600">
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateCategory} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Tên loại hợp đồng mới..."
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                className="flex-1 border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
-              />
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition shrink-0"
-              >
-                Thêm
-              </button>
-            </form>
-
-            <div className="space-y-2 max-h-60 overflow-y-auto divide-y">
-              {categories.map((cat) => (
-                <div key={cat.id} className="pt-2 flex justify-between items-center text-sm">
-                  <span className="font-medium text-slate-700">{cat.name}</span>
-                  <button
-                    onClick={() => handleDeleteCategory(cat.id)}
-                    className="p-1 text-red-500 hover:bg-red-50 rounded-lg transition"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL THÊM HỢP ĐỒNG */}
+      {/* MODAL THÊM / SỬA HỢP ĐỒNG */}
       {showContractModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-slate-900">Thêm Hợp Đồng Mới</h2>
-            <form onSubmit={handleCreateContract} className="space-y-4">
+            <h2 className="text-xl font-bold text-slate-900">
+              {editingContract ? 'Chỉnh Sửa Hợp Đồng' : 'Thêm Hợp Đồng Mới'}
+            </h2>
+            <form onSubmit={handleSubmitContract} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Tên Hợp Đồng *</label>
                 <input
@@ -528,7 +524,9 @@ export default function HomePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">File Hợp Đồng (PDF/Docx)</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  File Hợp Đồng {editingContract && '(Bỏ trống nếu giữ file cũ)'}
+                </label>
                 <input
                   type="file"
                   onChange={(e) => setFile(e.target.files?.[0] || null)}
@@ -549,10 +547,56 @@ export default function HomePage() {
                   disabled={uploading}
                   className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition"
                 >
-                  {uploading ? 'Đang lưu...' : 'Lưu Hợp Đồng'}
+                  {uploading ? 'Đang lưu...' : (editingContract ? 'Cập Nhật Hợp Đồng' : 'Lưu Hợp Đồng')}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL QUẢN LÝ LOẠI HỢP ĐỒNG */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-200">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Tag size={18} className="text-blue-600" /> Quản Lý Loại Hợp Đồng
+              </h2>
+              <button onClick={() => setShowCategoryModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateCategory} className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Tên loại hợp đồng mới..."
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                className="flex-1 border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit"
+                className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-blue-700 transition shrink-0"
+              >
+                Thêm
+              </button>
+            </form>
+
+            <div className="space-y-2 max-h-60 overflow-y-auto divide-y">
+              {categories.map((cat) => (
+                <div key={cat.id} className="pt-2 flex justify-between items-center text-sm">
+                  <span className="font-medium text-slate-700">{cat.name}</span>
+                  <button
+                    onClick={() => handleDeleteCategory(cat.id)}
+                    className="p-1 text-red-500 hover:bg-red-50 rounded-lg transition"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

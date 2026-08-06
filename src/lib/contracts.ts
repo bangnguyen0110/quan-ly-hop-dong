@@ -65,3 +65,15 @@ export async function deleteContract(id: string) {
   const { error } = await supabase.from('contracts').delete().eq('id', id);
   if (error) throw error;
 }
+
+// 8. Cập nhật / Chỉnh sửa hợp đồng
+export async function updateContract(id: string, contractData: Partial<Contract>) {
+  const { data, error } = await supabase
+    .from('contracts')
+    .update(contractData)
+    .eq('id', id)
+    .select();
+
+  if (error) throw error;
+  return data;
+}
