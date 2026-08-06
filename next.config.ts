@@ -1,13 +1,11 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
   typescript: {
-    // Bỏ qua lỗi TypeScript khi build trên Vercel
+    // Vẫn có thể giữ để bỏ qua kiểm tra TypeScript khi build
     ignoreBuildErrors: true,
   },
-  eslint: {
-    // Bỏ qua kiểm tra ESLint khi build
-    ignoreDuringBuilds: true,
-  },
+  /* Đã xóa khối 'eslint' bị lỗi ở Next.js 15 */
 };
 
 export default nextConfig;
