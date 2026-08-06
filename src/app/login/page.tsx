@@ -18,23 +18,31 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Kiểm tra tài khoản trong bảng app_users
+      // Cắt bỏ khoảng trắng thừa ở đầu/cuối username
+      const cleanUsername = username.trim();
+      const cleanPassword = password.trim();
+
       const { data, error: dbError } = await supabase
         .from('app_users')
         .select('*')
-        .eq('username', username)
-        .eq('password', password)
-        .single();
+        .eq('username', cleanUsername)
+        .eq('password', cleanPassword)
+        .maybeSingle(); // Dùng maybeSingle để tránh ngắt luồng khi không tìm thấy
 
-      if (dbError || !data) {
+      if (dbError) {
+        // Hiển thị lỗi chi tiết từ Supabase nếu có
+        setError(`Lỗi Database: ${dbError.message}`);
+      } else if (!data) {
         setError('Tài khoản hoặc mật khẩu không chính xác!');
       } else {
-        // Lưu trạng thái đăng nhập vào localStorage
+        // Lưu trạng thái đăng nhập
         localStorage.setItem('auth_user', JSON.stringify({ username: data.username }));
-        router.push('/');
+        
+        // Chuyển hướng sang trang chủ
+        window.location.href = '/';
       }
     } catch (err: any) {
-      setError('Đã xảy ra lỗi kết nối!');
+      setError(`Lỗi kết nối: ${err.message || 'Không thể gọi Supabase'}`);
     } finally {
       setLoading(false);
     }
@@ -53,7 +61,8 @@ export default function LoginPage() {
 
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
-            <AlertCircle size={16} /> {error}
+            <AlertCircle size={16} className="shrink-0" /> 
+            <span>{error}</span>
           </div>
         )}
 
