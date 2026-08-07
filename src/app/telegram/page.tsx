@@ -8,7 +8,7 @@ export default function TelegramPage() {
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
   const [isActive, setIsActive] = useState(true);
-  const [notifyTime, setNotifyTime] = useState('11:35'); // Giờ gửi mặc định
+  const [notifyTime, setNotifyTime] = useState('11:35');
   const [messageTemplate, setMessageTemplate] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -32,7 +32,9 @@ export default function TelegramPage() {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      const { data } = await supabase.from('telegram_settings').select('*').limit(1).maybeSingle();
+      const { data, error } = await supabase.from('telegram_settings').select('*').limit(1).maybeSingle();
+      if (error) throw error;
+
       if (data) {
         setBotToken(data.bot_token || '');
         setChatId(data.chat_id || '');
@@ -55,7 +57,13 @@ export default function TelegramPage() {
     setStatusMsg(null);
 
     try {
-      const { data: existing } = await supabase.from('telegram_settings').select('id').limit(1).maybeSingle();
+      const { data: existing, error: fetchErr } = await supabase
+        .from('telegram_settings')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
 
       const payload = {
         bot_token: botToken.trim(),
@@ -67,14 +75,26 @@ export default function TelegramPage() {
       };
 
       if (existing?.id) {
-        await supabase.from('telegram_settings').update(payload).eq('id', existing.id);
+        // Cập nhật cấu hình hiện tại
+        const { error: updateErr } = await supabase
+          .from('telegram_settings')
+          .update(payload)
+          .eq('id', existing.id);
+
+        if (updateErr) throw updateErr;
       } else {
-        await supabase.from('telegram_settings').insert([payload]);
+        // Thêm cấu hình mới nếu trống
+        const { error: insertErr } = await supabase
+          .from('telegram_settings')
+          .insert([payload]);
+
+        if (insertErr) throw insertErr;
       }
 
-      setStatusMsg({ type: 'success', text: 'Đã lưu cấu hình và thời gian gửi Telegram!' });
+      setStatusMsg({ type: 'success', text: 'Đã lưu cấu hình và thời gian gửi Telegram thành công!' });
     } catch (err: any) {
-      setStatusMsg({ type: 'error', text: 'Lỗi khi lưu: ' + err.message });
+      // Hiển thị lỗi chính xác từ Database nếu chưa tạo cột
+      setStatusMsg({ type: 'error', text: 'Lỗi khi lưu Database: ' + (err.message || 'Không thể lưu') });
     } finally {
       setSaving(false);
     }
