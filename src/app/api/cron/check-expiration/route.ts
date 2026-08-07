@@ -3,8 +3,11 @@ import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const forceRun = searchParams.get('force') === 'true'; // Cho phép chạy ép buộc nếu truyền ?force=true
+
     // 1. Lấy cấu hình Telegram
     const { data: config } = await supabase.from('telegram_settings').select('*').limit(1).maybeSingle();
 
@@ -12,7 +15,26 @@ export async function GET() {
       return NextResponse.json({ message: 'Tắt tính năng thông báo hoặc chưa nhập Token/Chat ID' }, { status: 200 });
     }
 
-    // 2. Lấy danh sách hợp đồng đang hoạt động
+    // 2. Kiểm tra giờ Việt Nam hiện tại (UTC+7)
+    const nowInVN = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+    const currentHour = String(nowInVN.getHours()).padStart(2, '0');
+    const currentMinute = String(nowInVN.getMinutes()).padStart(2, '0');
+    const currentTimeStr = `${currentHour}:${currentMinute}`;
+
+    const targetTime = config.notify_time || '11:35';
+
+    // Nếu chạy qua Cron tự động (không phải force) và chưa đến giờ setup thì bỏ qua
+    if (!forceRun) {
+      // So sánh theo khung giờ HH:mm (chấp nhận chênh lệch trong cùng 1 tiếng nếu cron quét hàng giờ)
+      const targetHour = targetTime.split(':')[0];
+      if (currentHour !== targetHour) {
+        return NextResponse.json({ 
+          message: `Chưa đến giờ thông báo (Giờ hiện tại VN: ${currentTimeStr}, Giờ cài đặt: ${targetTime})` 
+        });
+      }
+    }
+
+    // 3. Quét danh sách hợp đồng
     const { data: contracts } = await supabase.from('contracts').select('*').eq('status', 'active');
     if (!contracts || contracts.length === 0) {
       return NextResponse.json({ message: 'Không có hợp đồng nào' });
@@ -22,13 +44,7 @@ export async function GET() {
     today.setHours(0, 0, 0, 0);
 
     const notifiedContracts = [];
-
-    // Mẫu thông báo mặc định nếu chưa cài đặt
-    const template = config.message_template || `🔔 *CẢNH BÁO HỢP ĐỒNG SẮP HẾT HẠN*
-
-📜 *Tên HĐ:* {ten_hd}
-🏷️ *Mã HĐ:* {ma_hd}
-⏳ *Còn lại:* {ngay_con_lai} ngày (Hạn: {ngay_het_han})`;
+    const template = config.message_template || `🔔 *CẢNH BÁO HỢP ĐỒNG SẮP HẾT HẠN*\n\n📜 *Tên HĐ:* {ten_hd}\n⏳ *Còn lại:* {ngay_con_lai} ngày`;
 
     for (const contract of contracts) {
       if (!contract.end_date) continue;
@@ -36,13 +52,10 @@ export async function GET() {
       const endDate = new Date(contract.end_date);
       endDate.setHours(0, 0, 0, 0);
 
-      // Tính số ngày còn lại
       const diffDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       const notifyDays: number[] = contract.custom_notify_days || [1, 7];
 
-      // Nếu số ngày còn lại trùng khớp với mốc cài đặt (ví dụ: đúng còn 1 ngày hoặc đúng còn 7 ngày)
       if (notifyDays.includes(diffDays)) {
-        // Thay thế các từ khóa biến trong template
         let formattedMessage = template
           .replace(/{ten_hd}/g, contract.title || 'N/A')
           .replace(/{ma_hd}/g, contract.contract_code || 'Không có mã')
@@ -52,7 +65,6 @@ export async function GET() {
           .replace(/{ngay_het_han}/g, contract.end_date)
           .replace(/{link_file}/g, contract.file_url ? `[Tải file tại đây](${contract.file_url})` : 'Không có file');
 
-        // Gửi thông báo đến Telegram
         await fetch(`https://api.telegram.org/bot${config.bot_token}/sendMessage`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -67,7 +79,7 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ success: true, notified: notifiedContracts });
+    return NextResponse.json({ success: true, currentTime: currentTimeStr, notified: notifiedContracts });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

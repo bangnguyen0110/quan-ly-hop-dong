@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Bot, Save, Send, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { Bot, Save, Send, CheckCircle2, AlertCircle, Info, Clock } from 'lucide-react';
 
 export default function TelegramPage() {
   const [botToken, setBotToken] = useState('');
   const [chatId, setChatId] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [notifyTime, setNotifyTime] = useState('11:35'); // Giờ gửi mặc định
   const [messageTemplate, setMessageTemplate] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,6 +37,7 @@ export default function TelegramPage() {
         setBotToken(data.bot_token || '');
         setChatId(data.chat_id || '');
         setIsActive(data.is_active ?? true);
+        setNotifyTime(data.notify_time || '11:35');
         setMessageTemplate(data.message_template || defaultTemplate);
       } else {
         setMessageTemplate(defaultTemplate);
@@ -59,6 +61,7 @@ export default function TelegramPage() {
         bot_token: botToken.trim(),
         chat_id: chatId.trim(),
         is_active: isActive,
+        notify_time: notifyTime,
         message_template: messageTemplate,
         updated_at: new Date().toISOString(),
       };
@@ -69,7 +72,7 @@ export default function TelegramPage() {
         await supabase.from('telegram_settings').insert([payload]);
       }
 
-      setStatusMsg({ type: 'success', text: 'Lưu cấu hình Telegram thành công!' });
+      setStatusMsg({ type: 'success', text: 'Đã lưu cấu hình và thời gian gửi Telegram!' });
     } catch (err: any) {
       setStatusMsg({ type: 'error', text: 'Lỗi khi lưu: ' + err.message });
     } finally {
@@ -107,7 +110,7 @@ export default function TelegramPage() {
 
       const resData = await res.json();
       if (resData.ok) {
-        alert('Gửi tin nhắn thử nghiệm thành công! Hãy kiểm tra ứng dụng Telegram.');
+        alert('Gửi tin nhắn thử nghiệm thành công! Hãy kiểm tra Telegram.');
       } else {
         alert('Lỗi từ Telegram API: ' + resData.description);
       }
@@ -127,7 +130,7 @@ export default function TelegramPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Cấu Hình Telegram Bot</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tự động gửi thông báo đến Telegram khi hợp đồng sắp hết hạn
+            Tự động quét và gửi thông báo hợp đồng sắp hết hạn
           </p>
         </div>
       </div>
@@ -162,7 +165,7 @@ export default function TelegramPage() {
             </label>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Bot Token *</label>
               <input
@@ -186,6 +189,20 @@ export default function TelegramPage() {
                 className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-mono"
               />
             </div>
+
+            {/* Ô CHỌN THỜI GIAN THÔNG BÁO */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                <Clock size={14} className="text-blue-600" /> Giờ gửi thông báo hàng ngày *
+              </label>
+              <input
+                type="time"
+                required
+                value={notifyTime}
+                onChange={(e) => setNotifyTime(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-semibold text-slate-800"
+              />
+            </div>
           </div>
 
           {/* Soạn Mẫu Câu Thông Báo */}
@@ -203,7 +220,7 @@ export default function TelegramPage() {
               </button>
             </div>
             <textarea
-              rows={8}
+              rows={7}
               value={messageTemplate}
               onChange={(e) => setMessageTemplate(e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-mono"
@@ -213,7 +230,7 @@ export default function TelegramPage() {
           {/* Bảng Danh Sách Từ Khóa Thay Thế */}
           <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-xl space-y-2">
             <div className="flex items-center gap-1.5 text-xs font-bold text-blue-900">
-              <Info size={16} /> Danh sách từ khóa tự động điền (Copy dán vào mẫu trên):
+              <Info size={16} /> Các từ khóa tự động thay thế:
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
               <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">{'{ten_hd}'}</code>
