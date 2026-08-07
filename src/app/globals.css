@@ -30,7 +30,7 @@ body {
 .flex-1.flex.flex-col {
     padding-left: 260px;
 }
-.bg-white.rounded-2xl.shadow-xl.border.border-slate-200\/80.max-w-md.w-full.p-8.space-y-6 {
+.bg-white.p-8.rounded-2xl.border.border-slate-200.shadow-sm.max-w-md.w-full.space-y-6 {
     padding: 20px;
 }
 textarea, input, option, select, span{
