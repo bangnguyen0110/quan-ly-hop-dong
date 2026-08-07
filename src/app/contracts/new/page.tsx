@@ -22,7 +22,7 @@ export default function NewContractPage() {
   const [title, setTitle] = useState('');
   const [contractCode, setContractCode] = useState('');
   const [partyA, setPartyA] = useState('');
-  const [partyB, setPartyB] = useState('');
+  const [partyB, setPartyB] = useState('CÔNG TY CỔ PHẦN HIỀN NHÂN GROUP');
   const [value, setValue] = useState(0);
   const [endDate, setEndDate] = useState('');
   const [customDays, setCustomDays] = useState('1, 7');
@@ -115,20 +115,13 @@ export default function NewContractPage() {
       }
 
       // Gọi API generate để xuất file Google Doc/PDF
-      if (templateId && selectedTpl) {
+      if (newContractId) {
         try {
           await fetch('/api/contracts/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              google_doc_id: selectedTpl.google_doc_id,
-              apps_script_url: selectedTpl.apps_script_url,
-              template_id: templateId,
-              fields: customFields,
-              contract: {
-                ...payload,
-                id: newContractId,
-              },
+              contract_id: newContractId,
             }),
           });
         } catch (generateError) {
@@ -200,12 +193,29 @@ export default function NewContractPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Bên A</label>
-                  <input type="text" value={partyA} onChange={(e) => setPartyA(e.target.value)} placeholder="Công ty / Tổ chức A" className={inputCls} />
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Bên A (Đối Tác / Khách Hàng) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={partyA}
+                    onChange={(e) => setPartyA(e.target.value)}
+                    placeholder="Nhập tên công ty / cá nhân đối tác"
+                    className={inputCls}
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Bên B (Đối tác)</label>
-                  <input type="text" value={partyB} onChange={(e) => setPartyB(e.target.value)} placeholder="Công ty / Đối tác B" className={inputCls} />
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Bên B (CÔNG TY CỔ PHẦN HIỀN NHÂN GROUP)
+                  </label>
+                  <input
+                    type="text"
+                    value={partyB}
+                    onChange={(e) => setPartyB(e.target.value)}
+                    placeholder="CÔNG TY CỔ PHẦN HIỀN NHÂN GROUP"
+                    className={inputCls}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">

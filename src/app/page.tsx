@@ -10,7 +10,9 @@ import {
 import { getTemplates } from '@/lib/templates';
 import { 
   FileText, Plus, Trash2, Download, Search, 
-  Eye, Calendar, DollarSign, X, Filter, Tag, Pencil, Bell, Loader2
+  Eye, Calendar, DollarSign, X, Filter, Tag, Pencil, Bell, Loader2,
+  CheckCircle2, FolderOpen, FileText as ContractIcon,
+  LayoutList, LayoutGrid
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -26,6 +28,9 @@ export default function HomePage() {
   const [filterType, setFilterType] = useState<'all' | 'active' | 'expired' | '1day' | '7days'>('all');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
 
+  // View Mode State (List vs Grid)
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+
   // Modal State
   const [showContractModal, setShowContractModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -33,11 +38,15 @@ export default function HomePage() {
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  // Success Modal State (sau khi xuất file)
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [createdContractFolderId, setCreatedContractFolderId] = useState<string | null>(null);
+
   // Form State - Hợp Đồng
   const [title, setTitle] = useState('');
   const [contractCode, setContractCode] = useState('');
   const [partyA, setPartyA] = useState('');
-  const [partyB, setPartyB] = useState('');
+  const [partyB, setPartyB] = useState('CÔNG TY CỔ PHẦN HIỀN NHÂN GROUP');
   const [value, setValue] = useState(0);
   const [endDate, setEndDate] = useState('');
   const [customDays, setCustomDays] = useState('1, 7');
@@ -226,21 +235,18 @@ export default function HomePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          google_doc_id: template.google_doc_id,
-          apps_script_url: template.apps_script_url,
-          fields: contract.custom_fields || {},
-          contract: { ...contract, template: undefined },
+          contract_id: contract.id,
         }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Không thể tạo hợp đồng');
+        alert(data.error || 'Lỗi xuất file');
+        return;
       }
-      if (data.url) {
-        window.open(data.url, '_blank');
-      } else {
-        alert('Hợp đồng đã được tạo thành công!');
-      }
+      // Lưu folder_id để hiển thị trong modal
+      setCreatedContractFolderId(data.folder_id || null);
+      // Hiển thị popup thông báo thành công
+      setShowSuccessModal(true);
     } catch (err: any) {
       alert('Lỗi tạo hợp đồng: ' + (err.message || err));
     } finally {
@@ -382,6 +388,24 @@ export default function HomePage() {
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-slate-100 rounded-lg p-1">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-md transition ${viewMode === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                title="Dạng Bảng"
+              >
+                <LayoutList size={18} />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-md transition ${viewMode === 'grid' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                title="Dạng Lưới"
+              >
+                <LayoutGrid size={18} />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -397,18 +421,18 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* BẢNG HỢP ĐỒNG */}
+      {/* DANH SÁCH HỢP ĐỒNG */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-500 text-sm">Đang tải dữ liệu...</div>
-        ) : (
+        ) : viewMode === 'list' ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase border-b border-slate-200/80">
                   <th className="p-4">Tên / Mã HĐ</th>
                   <th className="p-4">Loại Hợp Đồng</th>
-                  <th className="p-4">Đối tác (Bên B)</th>
+                  <th className="p-4">Đối tác (Bên A)</th>
                   <th className="p-4">Giá trị (VNĐ)</th>
                   <th className="p-4">Ngày hết hạn</th>
                   <th className="p-4">Mốc báo trước</th>
@@ -430,7 +454,7 @@ export default function HomePage() {
                           {c.category?.name || 'Chưa phân loại'}
                         </span>
                       </td>
-                      <td className="p-4 text-slate-600">{c.party_b || '-'}</td>
+                      <td className="p-4 text-slate-600">{c.party_a || '-'}</td>
                       <td className="p-4 font-semibold text-slate-900">
                         {Number(c.value).toLocaleString('vi-VN')}
                       </td>
@@ -509,6 +533,53 @@ export default function HomePage() {
               </tbody>
             </table>
           </div>
+        ) : (
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredContracts.map((c) => {
+              const daysLeft = getDaysLeft(c.end_date);
+              const statusConfig = daysLeft < 0 ? { label: `Đã hết hạn (${Math.abs(daysLeft)} ngày)`, className: 'bg-red-100 text-red-700' } : daysLeft === 0 ? { label: 'Hết hạn HÔM NAY', className: 'bg-orange-100 text-orange-700' } : daysLeft <= 7 ? { label: `Còn ${daysLeft} ngày`, className: 'bg-amber-100 text-amber-800' } : { label: `Còn ${daysLeft} ngày`, className: 'bg-emerald-100 text-emerald-700' };
+              return (
+                <div key={c.id} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition bg-white space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1 flex-1">
+                      <h3 className="font-bold text-slate-900 line-clamp-1">{c.title}</h3>
+                      <p className="text-xs text-slate-500 font-mono">{c.contract_code || 'Chưa có mã'}</p>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-lg font-semibold ${statusConfig.className}`}>
+                      {statusConfig.label}
+                    </span>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Loại HĐ:</span>
+                      <span className="text-slate-700 font-medium">{c.category?.name || 'Chưa phân loại'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Bên A (Đối tác):</span>
+                      <span className="text-slate-700 font-medium truncate max-w-[150px]">{c.party_a || '-'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Giá trị:</span>
+                      <span className="text-slate-900 font-bold">{Number(c.value).toLocaleString('vi-VN')} VNĐ</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Hết hạn:</span>
+                      <span className="text-slate-800 font-medium">{c.end_date}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <div className="flex gap-1">
+                      <button onClick={() => setSelectedContract(c)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition" title="Xem chi tiết"><Eye size={16} /></button>
+                      <button onClick={() => handleOpenEditModal(c)} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition" title="Chỉnh sửa"><Pencil size={16} /></button>
+                      <button onClick={() => handleGenerate(c)} disabled={generatingId === c.id} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition disabled:opacity-50" title="Xuất file">{generatingId === c.id ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}</button>
+                      {c.file_url && <a href={c.file_url} target="_blank" rel="noreferrer" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Tải file"><Download size={16} /></a>}
+                    </div>
+                    <button onClick={() => handleDeleteContract(c.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition" title="Xóa"><Trash2 size={16} /></button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
@@ -558,20 +629,27 @@ export default function HomePage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Bên A</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Bên A (Đối Tác / Khách Hàng) <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
+                    required
                     value={partyA}
                     onChange={(e) => setPartyA(e.target.value)}
+                    placeholder="Nhập tên công ty / cá nhân đối tác"
                     className="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Bên B (Đối tác)</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Bên B (CÔNG TY CỔ PHẦN HIỀN NHÂN GROUP)
+                  </label>
                   <input
                     type="text"
                     value={partyB}
                     onChange={(e) => setPartyB(e.target.value)}
+                    placeholder="CÔNG TY CỔ PHẦN HIỀN NHÂN GROUP"
                     className="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
@@ -834,6 +912,59 @@ export default function HomePage() {
             >
               Đóng
             </button>
+          </div>
+        </div>
+      )}
+      {/* POPUP THÔNG BÁO XUẤT HỢP ĐỒNG THÀNH CÔNG */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 p-6 max-w-md w-full space-y-5 animate-in fade-in zoom-in duration-200">
+            <div className="text-center space-y-3">
+              <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                <CheckCircle2 size={32} className="text-emerald-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-900">🎉 Tạo Hợp Đồng Thành Công!</h2>
+              <p className="text-sm text-slate-500">
+                Hợp đồng đã được xuất file thành công.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              {/* Nút 1: Đóng */}
+              <button
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+              >
+                Đóng
+              </button>
+
+              {/* Nút 2: Mở folder */}
+              <button
+                onClick={() => {
+                  if (!createdContractFolderId) {
+                    alert('Mẫu hợp đồng này chưa được cấu hình Google Drive Folder ID.');
+                    return;
+                  }
+                  window.open('https://drive.google.com/drive/folders/' + createdContractFolderId, '_blank');
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium shadow-sm transition"
+              >
+                <FolderOpen size={18} />
+                Mở folder
+              </button>
+
+              {/* Nút 3: Đến Hợp Đồng */}
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  // Có thể điều hướng đến trang danh sách hoặc giữ nguyên
+                }}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm transition"
+              >
+                <ContractIcon size={18} />
+                Đến Hợp Đồng
+              </button>
+            </div>
           </div>
         </div>
       )}
