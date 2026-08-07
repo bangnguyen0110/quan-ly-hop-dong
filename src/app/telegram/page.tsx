@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Bot, Save, Send, CheckCircle2, AlertCircle, Info, Clock } from 'lucide-react';
+import { Bot, Save, Send, CheckCircle2, AlertCircle, Info, Clock, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 export default function TelegramPage() {
   const [botToken, setBotToken] = useState('');
@@ -143,6 +144,11 @@ export default function TelegramPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600">
+          <ArrowLeft size={16} /> Quay lại Trang chủ
+        </Link>
+      </div>
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
         <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
           <Bot size={32} />

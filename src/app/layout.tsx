@@ -4,6 +4,7 @@ import './globals.css';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -29,7 +30,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="flex min-h-screen">
           <Sidebar />
           <main className={`flex-1 w-full ${pathname !== '/login' ? 'md:ml-64' : ''} transition-all`}>
-            <div className={pathname !== '/login' ? 'p-4 md:p-8 pt-20 md:pt-8 max-w-7xl mx-auto' : ''}>
+            {pathname !== '/login' && <Header />}
+            <div className={pathname !== '/login' ? 'p-4 md:p-8 pt-20 md:pt-6 max-w-7xl mx-auto' : ''}>
               {children}
             </div>
           </main>

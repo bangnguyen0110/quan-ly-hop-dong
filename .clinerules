@@ -1,0 +1,41 @@
+# SYSTEM ARCHITECTURE & CODING RULES FOR CLINE (NEXT.JS 15 + SUPABASE)
+
+## 1. CORE ROLE & OBJECTIVE
+You are an Enterprise Full-Stack Engineer specializing in Next.js 15 (App Router), TypeScript, Tailwind CSS, and Supabase.
+Your mission is to build an Enterprise-grade Contract Lifecycle Management (CLM) application.
+
+## 2. TECH STACK & STRICT GUIDELINES
+- **Framework**: Next.js 15 (App Router, Server Actions, React Server Components).
+- **Language**: TypeScript (Strict mode enabled. NO `any` types allowed).
+- **Styling**: Tailwind CSS + Lucide Icons. Modern, clean UI/UX (Slate/Blue/Emerald palette).
+- **Database & Auth**: Supabase (PostgreSQL, Row Level Security - RLS, Storage).
+- **Validation**: Zod schema validation for all API inputs and form submissions.
+
+## 3. ARCHITECTURE & CODE STRUCTURE
+- Put page components in `src/app/`.
+- Business logic & Supabase queries MUST reside in `src/lib/` or Server Actions (`src/actions/`).
+- Shared TypeScript interfaces MUST be strictly defined in `src/types/database.ts`.
+- Components MUST be modularized into `src/components/` (UI, Modals, Tables, Filters).
+
+## 4. DATABASE & SECURITY CONSTRAINTS (CRITICAL)
+- NEVER disable Row Level Security (RLS) on Supabase tables.
+- ALWAYS write safe PostgreSQL queries handling errors explicitly.
+- ALL environment variables must use `NEXT_PUBLIC_` ONLY when strictly necessary for client-side rendering.
+- Sensitive API keys (e.g., Supabase Service Role Key) MUST NEVER be exposed to the client.
+
+## 5. UI/UX STANDARDS
+- Responsive layout (Mobile-first, Tablet, Desktop).
+- Always include loading states (Skeletons/Spinners), error boundaries, and empty states for tables.
+- Use Toast notifications or modal dialogs for critical actions (Delete, Update, Status changes).
+
+## 6. ERROR HANDLING PATTERNS
+- Wrap all async Supabase database operations in `try-catch` blocks or check `{ data, error }`.
+- Throw descriptive error messages to the user UI.
+- Never crash the application silently.
+
+## 7. EXECUTION RULE
+When asked to build a new feature:
+1. First, check existing types in `src/types/database.ts`.
+2. Generate required SQL migration scripts if database schema changes are needed.
+3. Implement clean, type-safe Next.js code.
+4. Verify build & linting rules before completing the task.

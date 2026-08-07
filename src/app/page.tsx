@@ -1,20 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Contract, Category } from '@/types/database';
+import { useRouter } from 'next/navigation';
+import { Contract, Category, ContractTemplate } from '@/types/database';
 import { 
   getContracts, createContract, updateContract, uploadContractFile, deleteContract,
   getCategories, createCategory, deleteCategory 
 } from '@/lib/contracts';
+import { getTemplates } from '@/lib/templates';
 import { 
   FileText, Plus, Trash2, Download, Search, 
-  Eye, Calendar, DollarSign, X, Filter, Tag, Pencil, Bell
+  Eye, Calendar, DollarSign, X, Filter, Tag, Pencil, Bell, Loader2
 } from 'lucide-react';
 
 export default function HomePage() {
+  const router = useRouter();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
   
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,6 +43,9 @@ export default function HomePage() {
   const [customDays, setCustomDays] = useState('1, 7');
   const [categoryId, setCategoryId] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  // Form State - Template & Custom Fields
+  const [templateId, setTemplateId] = useState('');
+  const [customFields, setCustomFields] = useState<Record<string, any>>({});
 
   // Form State - Loại Hợp Đồng
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -49,12 +57,14 @@ export default function HomePage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [contractsData, categoriesData] = await Promise.all([
+      const [contractsData, categoriesData, templatesData] = await Promise.all([
         getContracts(),
         getCategories(),
+        getTemplates(),
       ]);
       setContracts(contractsData);
       setCategories(categoriesData);
+      setTemplates(templatesData);
     } catch (err) {
       console.error('Lỗi lấy dữ liệu:', err);
     } finally {
@@ -83,16 +93,14 @@ export default function HomePage() {
     setEndDate(contract.end_date || '');
     setCustomDays(contract.custom_notify_days?.join(', ') || '1, 7');
     setCategoryId(contract.category_id || '');
+    setTemplateId(contract.template_id || '');
+    setCustomFields(contract.custom_fields || {});
     setFile(null);
     setShowContractModal(true);
   };
 
-  // Mở Modal Thêm Mới
-  const handleOpenCreateModal = () => {
-    resetContractForm();
-    setShowContractModal(true);
-  };
-
+  // Mở Modal Chỉnh Sửa - Modal CHỈ dùng cho chức năng Sửa hợp đồng
+  // (Việc Thêm hợp đồng được chuyển sang trang /contracts/new)
   // Lưu Hợp đồng (Xử lý cả THÊM MỚI và CẬP NHẬT)
   const handleSubmitContract = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +128,8 @@ export default function HomePage() {
         status: 'active',
         custom_notify_days: notifyDaysArray.length > 0 ? notifyDaysArray : [1, 7],
         category_id: categoryId || undefined,
+        template_id: templateId || undefined,
+        custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       };
 
       if (editingContract) {
@@ -176,7 +186,66 @@ export default function HomePage() {
     setEndDate('');
     setCustomDays('1, 7');
     setCategoryId('');
+    setTemplateId('');
+    setCustomFields({});
     setFile(null);
+  };
+
+  // Xử lý khi chọn Mẫu hợp đồng - tự động khởi tạo custom_fields input
+  const selectedTemplate = templates.find((t) => t.id === templateId) || null;
+
+  const handleTemplateChange = (eid: string) => {
+    setTemplateId(eid);
+    const tpl = templates.find((t) => t.id === eid);
+    if (!tpl) {
+      setCustomFields({});
+      return;
+    }
+    // Khởi tạo object custom_fields với các key của field_definitions (giữ giá trị cũ nếu có)
+    const initial: Record<string, any> = {};
+    tpl.field_definitions?.forEach((f) => {
+      initial[f.key] = customFields[f.key] !== undefined ? customFields[f.key] : '';
+    });
+    setCustomFields(initial);
+  };
+
+  const setCustomFieldValue = (key: string, val: any) => {
+    setCustomFields((prev) => ({ ...prev, [key]: val }));
+  };
+
+  // Gọi API generate để tạo Google Doc/PDF từ template
+  const handleGenerate = async (contract: Contract) => {
+    const template = templates.find((t) => t.id === contract.template_id);
+    if (!template) {
+      alert('Hợp đồng này chưa được gắn một Mẫu hợp đồng nào. Vui lòng chỉnh sửa để chọn Mẫu.');
+      return;
+    }
+    try {
+      setGeneratingId(contract.id);
+      const res = await fetch('/api/contracts/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          google_doc_id: template.google_doc_id,
+          apps_script_url: template.apps_script_url,
+          fields: contract.custom_fields || {},
+          contract: { ...contract, template: undefined },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Không thể tạo hợp đồng');
+      }
+      if (data.url) {
+        window.open(data.url, '_blank');
+      } else {
+        alert('Hợp đồng đã được tạo thành công!');
+      }
+    } catch (err: any) {
+      alert('Lỗi tạo hợp đồng: ' + (err.message || err));
+    } finally {
+      setGeneratingId(null);
+    }
   };
 
   // BỘ LỌC DỮ LIỆU
@@ -216,7 +285,7 @@ export default function HomePage() {
             <Tag size={16} /> Quản lý loại HĐ
           </button>
           <button
-            onClick={handleOpenCreateModal}
+            onClick={() => router.push('/contracts/new')}
             className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 font-medium text-sm transition shadow-md shadow-blue-600/20"
           >
             <Plus size={18} /> Thêm hợp đồng
@@ -406,6 +475,14 @@ export default function HomePage() {
                           >
                             <Pencil size={18} />
                           </button>
+                          <button
+                            onClick={() => handleGenerate(c)}
+                            disabled={generatingId === c.id}
+                            className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition disabled:opacity-50"
+                            title="Xuất file hợp đồng (Google Doc/PDF)"
+                          >
+                            {generatingId === c.id ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />}
+                          </button>
                           {c.file_url && (
                             <a
                               href={c.file_url}
@@ -520,6 +597,71 @@ export default function HomePage() {
                     className="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500"
                   />
                 </div>
+              </div>
+
+              {/* CHỌN MẪU HỢP ĐỒNG & NHẬP DỮ LIỆU TÙY CHỈNH */}
+              <div className="border-t border-slate-100 pt-4 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center gap-1.5">
+                    <FileText size={14} className="text-blue-600" /> Mẫu Hợp Đồng (Google Doc)
+                  </label>
+                  <select
+                    value={templateId}
+                    onChange={(e) => handleTemplateChange(e.target.value)}
+                    className="w-full border rounded-xl p-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                  >
+                    <option value="">-- Không chọn mẫu --</option>
+                    {templates.map((tpl) => (
+                      <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedTemplate && selectedTemplate.field_definitions?.length > 0 ? (
+                  <div className="space-y-3 bg-slate-50 rounded-xl p-4 border border-slate-200/70">
+                    <p className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                      <Calendar size={14} className="text-amber-500" />
+                      Nhập dữ liệu cho {selectedTemplate.name}
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedTemplate.field_definitions.map((f) => {
+                        const value = customFields[f.key] !== undefined ? customFields[f.key] : '';
+                        return (
+                          <div key={f.key}>
+                            <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                              {f.label} <span className="text-slate-300 font-mono">({`{{${f.key}}}`})</span>
+                            </label>
+                            {f.type === 'date' ? (
+                              <input
+                                type="date"
+                                value={value}
+                                onChange={(e) => setCustomFieldValue(f.key, e.target.value)}
+                                className="w-full border rounded-lg p-2 text-sm outline-none focus:border-blue-500 bg-white"
+                              />
+                            ) : f.type === 'number' ? (
+                              <input
+                                type="number"
+                                value={value}
+                                onChange={(e) => setCustomFieldValue(f.key, e.target.value)}
+                                className="w-full border rounded-lg p-2 text-sm outline-none focus:border-blue-500 bg-white"
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                value={value}
+                                onChange={(e) => setCustomFieldValue(f.key, e.target.value)}
+                                placeholder={f.label}
+                                className="w-full border rounded-lg p-2 text-sm outline-none focus:border-blue-500 bg-white"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : selectedTemplate ? (
+                  <p className="text-xs text-slate-400 italic">Mẫu này không có trường dữ liệu tùy chỉnh.</p>
+                ) : null}
               </div>
 
               {/* Ô NHẬP MỐC BÁO TRƯỚC (NẮM GIỮ TÍNH NĂNG THÔNG BÁO) */}

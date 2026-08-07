@@ -1,282 +1,392 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import { Plus, Edit, Trash2, X } from "lucide-react";
-
-interface ContractTemplate {
-  id: string;
-  title: string;
-  content: string;
-  category_id: string;
-  created_at: string;
-}
-
-interface Category {
-  id: string;
-  name: string;
-}
+import { useEffect, useState } from 'react';
+import { ContractTemplate, FieldDefinition } from '@/types/database';
+import { getTemplates, createTemplate, updateTemplate, deleteTemplate } from '@/lib/templates';
+import { FileCode, Plus, Trash2, Tag, ArrowLeft, Search, Edit3, X, Clock } from 'lucide-react';
+import Link from 'next/link';
 
 export default function TemplatesPage() {
-    const [templates, setTemplates] = useState<ContractTemplate[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<ContractTemplate | null>(null);
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // State cho Form (Tạo mới & Chỉnh sửa)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [googleDocId, setGoogleDocId] = useState('');
+  const [googleFolderId, setGoogleFolderId] = useState('');
+  const [appsScriptUrl, setAppsScriptUrl] = useState('');
+  const [fields, setFields] = useState<FieldDefinition[]>([]);
+
+  // State thêm Trường Tùy Chỉnh
+  const [fieldKey, setFieldKey] = useState('');
+  const [fieldLabel, setFieldLabel] = useState('');
+  const [fieldType, setFieldType] = useState<'text' | 'number' | 'date'>('text');
 
   useEffect(() => {
-    fetchTemplatesAndCategories();
+    fetchData();
   }, []);
-  
-  const fetchTemplatesAndCategories = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: templatesData, error: templatesError } = await supabase
-        .from("contract_templates")
-        .select("*");
-      if (templatesError) throw templatesError;
-      setTemplates(templatesData || []);
 
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from("categories")
-        .select("*");
-      if (categoriesError) throw categoriesError;
-      setCategories(categoriesData || []);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch data.");
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const data = await getTemplates();
+      setTemplates(data);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateNew = () => {
-    setEditingTemplate(null);
-    setTitle("");
-    setContent("");
-    setCategoryId(categories.length > 0 ? categories[0].id : "");
-    setShowModal(true);
+  // Mở chế độ Chỉnh sửa mẫu
+  const handleEditClick = (tpl: ContractTemplate) => {
+    setEditingId(tpl.id);
+    setName(tpl.name);
+    setGoogleDocId(tpl.google_doc_id);
+    setGoogleFolderId(tpl.google_folder_id || '');
+    setAppsScriptUrl(tpl.apps_script_url || '');
+    setFields(tpl.field_definitions || []);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleEdit = (template: ContractTemplate) => {
-    setEditingTemplate(template);
-    setTitle(template.title);
-    setContent(template.content);
-    setCategoryId(template.category_id);
-    setShowModal(true);
+  // Hủy chỉnh sửa (Reset Form)
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setName('');
+    setGoogleDocId('');
+    setGoogleFolderId('');
+    setAppsScriptUrl('');
+    setFields([]);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa mẫu hợp đồng này?")) return;
-    setError(null);
-    try {
-      const { error } = await supabase
-        .from("contract_templates")
-        .delete()
-        .eq("id", id);
-      if (error) throw error;
-      fetchTemplatesAndCategories(); // Re-fetch data
-    } catch (err: any) {
-      setError(err.message || "Failed to delete template.");
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!title || !content || !categoryId) {
-      setError("Please fill in all fields.");
+  // Thêm Custom Field
+  const handleAddField = () => {
+    if (!fieldKey.trim() || !fieldLabel.trim()) {
+      alert('Vui lòng nhập Mã biến và Nhãn hiển thị!');
       return;
     }
+    const cleanKey = fieldKey.trim().toLowerCase().replace(/\s+/g, '_');
+    if (fields.some((f) => f.key === cleanKey)) {
+      alert('Mã biến này đã tồn tại!');
+      return;
+    }
+    setFields([...fields, { key: cleanKey, label: fieldLabel, type: fieldType }]);
+    setFieldKey('');
+    setFieldLabel('');
+  };
 
+  const handleRemoveField = (index: number) => {
+    setFields(fields.filter((_, i) => i !== index));
+  };
+
+  // Lưu Form (Tạo mới hoặc Cập nhật)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      if (editingTemplate) {
-        // Update existing template
-        const { error } = await supabase
-          .from("contract_templates")
-          .update({ title, content, category_id: categoryId })
-          .eq("id", editingTemplate.id);
-        if (error) throw error;
+      if (editingId) {
+        // Cập nhật mẫu hiện tại
+        await updateTemplate(editingId, {
+          name,
+          google_doc_id: googleDocId.trim(),
+          google_folder_id: googleFolderId.trim() || undefined,
+          apps_script_url: appsScriptUrl.trim(),
+          field_definitions: fields,
+        });
+        alert('Cập nhật mẫu hợp đồng thành công!');
       } else {
-        // Add new template
-        const { error } = await supabase
-          .from("contract_templates")
-          .insert([{ title, content, category_id: categoryId }]);
-        if (error) throw error;
+        // Tạo mẫu mới
+        await createTemplate({
+          name,
+          google_doc_id: googleDocId.trim(),
+          google_folder_id: googleFolderId.trim() || undefined,
+          apps_script_url: appsScriptUrl.trim(),
+          field_definitions: fields,
+        });
+        alert('Tạo mẫu hợp đồng mới thành công!');
       }
-      setShowModal(false);
-      fetchTemplatesAndCategories(); // Re-fetch data
+
+      handleCancelEdit();
+      fetchData();
     } catch (err: any) {
-      setError(err.message || "Failed to save template.");
+      alert('Lỗi: ' + err.message);
     }
   };
-    if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen text-gray-600">
-        Đang tải...
-      </div>
+
+  // Lọc mẫu theo Từ khóa tìm kiếm (bọc an toàn cho các trường có thể null từ CSDL)
+  const filteredTemplates = templates.filter((t) => {
+    const term = searchTerm.toLowerCase();
+    const matchName = (t.name || '').toLowerCase().includes(term);
+    const matchDocId = (t.google_doc_id || '').toLowerCase().includes(term);
+    const matchFields = t.field_definitions?.some(
+      (f) => (f.key || '').toLowerCase().includes(term) || (f.label || '').toLowerCase().includes(term)
     );
-  }
+    return matchName || matchDocId || matchFields;
+  });
 
   return (
-    <div className="container mx-auto p-4">
-      <header className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">Hợp Đồng Mẫu</h1>
-        <button
-          onClick={handleCreateNew}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition duration-300 flex items-center space-x-2"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Tạo Mẫu Mới</span>
-        </button>
-      </header>
-
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> {error}</span>
-          <span className="absolute top-0 bottom-0 right-0 px-4 py-3" onClick={() => setError(null)}>
-            <X className="w-4 h-4 cursor-pointer" />
-          </span>
-        </div>
-      )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {templates.map((template) => (
-          <div
-            key={template.id}
-            className="bg-white shadow-sm rounded-xl p-6 border border-gray-100 flex flex-col justify-between"
-          >
-            <div>
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                {template.title}
-              </h2>
-              <p className="text-sm text-gray-500 mb-3">
-                Danh mục:{" "}
-                {categories.find((cat) => cat.id === template.category_id)?.name ||
-                  "N/A"}
-              </p>
-              <p className="text-gray-700 text-sm line-clamp-3 mb-4">
-                {template.content}
-              </p>
-            </div>
-            <div className="flex space-x-3 mt-4">
-              <button
-                onClick={() => handleEdit(template)}
-                className="flex items-center space-x-2 px-4 py-2 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition duration-300"
-              >
-                <Edit className="w-4 h-4" />
-                <span>Sửa</span>
-              </button>
-              <button
-                onClick={() => handleDelete(template.id)}
-                className="flex items-center space-x-2 px-4 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition duration-300"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Xóa</span>
-              </button>
-            </div>
-          </div>
-        ))}
+    <div className="max-w-5xl mx-auto space-y-6 pb-12 p-4">
+      <div className="flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600">
+          <ArrowLeft size={16} /> Quay lại Danh sách Hợp đồng
+        </Link>
       </div>
 
-      
-      {showModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-bold text-gray-800">
-                {editingTemplate ? "Sửa Mẫu Hợp Đồng" : "Thêm Mẫu Hợp Đồng"}
-              </h2>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <form onSubmit={handleSubmit}>
-              <div className="mb-4">
-                <label
-                  htmlFor="title"
-                  className="block text-gray-700 text-sm font-semibold mb-2"
-                >
-                  Tiêu đề mẫu
-                </label>
-                <input
-                  type="text"
-                  id="title"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="mb-4">
-                <label
-                  htmlFor="category"
-                  className="block text-gray-700 text-sm font-semibold mb-2"
-                >
-                  Chọn Danh mục
-                </label>
-                <select
-                  id="category"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  required
-                >
-                  {categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mb-6">
-                <label
-                  htmlFor="content"
-                  className="block text-gray-700 text-sm font-semibold mb-2"
-                >
-                  Nội dung văn bản
-                </label>
-                <textarea
-                  id="content"
-                  rows={10}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Sử dụng {{ten_bien}} để làm trường dữ liệu động"
-                  required
-                ></textarea>
-                <p className="text-sm text-gray-500 mt-1">
-                  {"Sử dụng `{{ten_bien}}` để làm trường dữ liệu động (ví dụ: `{{ten_khach_hang}}`)."}
-                </p>
-              </div>
-
-              <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="px-5 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition duration-300"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition duration-300"
-                >
-                  {editingTemplate ? "Lưu Thay Đổi" : "Tạo Mẫu"}
-                </button>
-              </div>
-            </form>
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <FileCode size={28} />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">Quản Lý Mẫu Hợp Đồng</h1>
+            <p className="text-xs text-slate-500">Thiết lập & chỉnh sửa mẫu Google Docs, Custom Fields</p>
           </div>
         </div>
-      )}
+      </div>
+
+      {/* FORM TẠO / SỬA MẪU HỢP ĐỒNG */}
+      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+        <div className="flex items-center justify-between border-b pb-3">
+          <h2 className="text-base font-bold text-slate-800">
+            {editingId ? '✏️ Chỉnh Sửa Mẫu Hợp Đồng' : '➕ Thêm Mẫu Hợp Đồng Mới'}
+          </h2>
+          {editingId && (
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="text-xs text-red-600 hover:underline flex items-center gap-1 font-medium"
+            >
+              <X size={14} /> Hủy chỉnh sửa
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Tên Mẫu Hợp Đồng *</label>
+            <input
+              type="text"
+              required
+              placeholder="VD: Hợp đồng Thuê nhà 2026"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Google Doc Template ID *</label>
+            <input
+              type="text"
+              required
+              placeholder="ID từ link Google Doc (VD: 1a2b3c4d5e...)"
+              value={googleDocId}
+              onChange={(e) => setGoogleDocId(e.target.value)}
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-mono"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Google Drive Folder ID</label>
+            <input
+              type="text"
+              placeholder="ID từ link Google Drive Folder (Tùy chọn)"
+              value={googleFolderId}
+              onChange={(e) => setGoogleFolderId(e.target.value)}
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">URL Google Apps Script Webhook *</label>
+            <input
+              type="url"
+              required
+              placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
+              value={appsScriptUrl}
+              onChange={(e) => setAppsScriptUrl(e.target.value)}
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-mono"
+            />
+          </div>
+        </div>
+
+        {/* CẤU HÌNH TRƯỜNG TÙY CHỈNH */}
+        <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            <Tag size={16} className="text-blue-600" /> Thêm Trường Dữ Liệu Tùy Chỉnh (Custom Fields)
+          </span>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+            <input
+              type="text"
+              placeholder="Mã biến (VD: tax_code)"
+              value={fieldKey}
+              onChange={(e) => setFieldKey(e.target.value)}
+              className="p-2 bg-white border border-slate-200 rounded-xl text-xs outline-none font-mono"
+            />
+            <input
+              type="text"
+              placeholder="Tên nhãn (VD: Mã số thuế)"
+              value={fieldLabel}
+              onChange={(e) => setFieldLabel(e.target.value)}
+              className="p-2 bg-white border border-slate-200 rounded-xl text-xs outline-none"
+            />
+            <select
+              value={fieldType}
+              onChange={(e: any) => setFieldType(e.target.value)}
+              className="p-2 bg-white border border-slate-200 rounded-xl text-xs outline-none"
+            >
+              <option value="text">Chữ (Text)</option>
+              <option value="number">Số (Number)</option>
+              <option value="date">Ngày (Date)</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleAddField}
+              className="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs font-medium hover:bg-blue-700 flex items-center justify-center gap-1"
+            >
+              <Plus size={14} /> Thêm trường
+            </button>
+          </div>
+
+          {fields.length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200">
+              {fields.map((f, idx) => (
+                <span key={idx} className="bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-xs flex items-center gap-2">
+                  <span className="font-mono font-bold text-blue-600">{`{{${f.key}}}`}</span>
+                  <span className="text-slate-500">({f.label})</span>
+                  <button type="button" onClick={() => handleRemoveField(idx)} className="text-red-500 hover:text-red-700">
+                    <Trash2 size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3">
+          {editingId && (
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium"
+            >
+              Hủy
+            </button>
+          )}
+          <button
+            type="submit"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-2.5 rounded-xl text-xs transition shadow-sm"
+          >
+            {editingId ? 'Cập Nhật Mẫu Hợp Đồng' : 'Lưu Mẫu Hợp Đồng'}
+          </button>
+        </div>
+      </form>
+
+      {/* TÌM KIẾM VÀ DANH SÁCH CÓ ĐÁNH STT */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Danh Sách Mẫu Hợp Đồng</h2>
+            <p className="text-xs text-slate-400">Các mẫu dùng gần đây nhất được tự động đẩy lên phía trên</p>
+          </div>
+
+          {/* Ô TÌM KIẾM */}
+          <div className="relative w-full md:w-72">
+            <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Tìm theo tên mẫu, mã biến..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* BẢNG HIỂN THỊ CÓ STT */}
+        <div className="overflow-x-auto border border-slate-100 rounded-xl">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50 border-b text-slate-500 font-semibold">
+              <tr>
+                <th className="p-3 w-12 text-center">STT</th>
+                <th className="p-3">Tên Mẫu</th>
+                <th className="p-3">Google Doc ID</th>
+                <th className="p-3">Folder ID</th>
+                <th className="p-3">Các Trường Tùy Chỉnh</th>
+                <th className="p-3 text-center">Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y text-slate-700">
+              {loading ? (
+                <tr><td colSpan={6} className="p-4 text-center text-slate-400">Đang tải...</td></tr>
+              ) : filteredTemplates.length === 0 ? (
+                <tr><td colSpan={6} className="p-4 text-center text-slate-400">Không tìm thấy mẫu hợp đồng nào.</td></tr>
+              ) : (
+                filteredTemplates.map((tpl, index) => (
+                  <tr key={tpl.id} className="hover:bg-slate-50 transition">
+                    {/* STT */}
+                    <td className="p-3 text-center font-bold text-slate-500">{index + 1}</td>
+                    
+                    <td className="p-3 font-bold text-slate-900">
+                      {tpl.name}
+                      {index === 0 && (
+                        <span className="ml-2 inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded text-[10px] font-medium">
+                          <Clock size={10} /> Dùng gần nhất
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="p-3 font-mono text-slate-500 max-w-[150px] truncate">{tpl.google_doc_id}</td>
+
+                    <td className="p-3 font-mono text-slate-500 max-w-[150px] truncate">
+                      {tpl.google_folder_id || <span className="text-slate-300">-</span>}
+                    </td>
+
+                    <td className="p-3">
+                      <div className="flex flex-wrap gap-1">
+                        {tpl.field_definitions?.map((f, i) => (
+                          <span key={i} className="bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded text-[10px] font-mono">
+                            {`{{${f.key}}}`}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+
+                    {/* THAO TÁC SỬA / XÓA */}
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleEditClick(tpl)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          title="Sửa mẫu này"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (confirm('Bạn có chắc muốn xóa mẫu này?')) {
+                              await deleteTemplate(tpl.id);
+                              fetchData();
+                            }
+                          }}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
+                          title="Xóa mẫu"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

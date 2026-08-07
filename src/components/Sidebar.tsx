@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FileText, Layers, Bot, Menu, X, Shield, LogOut } from 'lucide-react';
+import { FileText, Layers, Bot, Menu, X, Shield, LogOut, FileSignature } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -20,6 +20,7 @@ export default function Sidebar() {
 
   const menuItems = [
     { name: 'Danh sách Hợp đồng', href: '/', icon: FileText },
+    { name: 'Phụ lục Hợp đồng', href: '/appendices', icon: FileSignature },
     { name: 'Hợp đồng Mẫu', href: '/templates', icon: Layers },
     { name: 'Cấu hình Telegram', href: '/telegram', icon: Bot },
   ];
