@@ -36,3 +36,6 @@ body {
 textarea, input, option, select, span{
   color: #2f2f2f;
 }
+.flex.items-center.gap-2.font-bold.text-white.tracking-wide span {
+    color: #fff;
+}
