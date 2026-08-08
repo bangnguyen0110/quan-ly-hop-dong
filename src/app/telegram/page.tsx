@@ -122,21 +122,21 @@ export default function TelegramPage() {
         .replace(/{ngay_het_han}/g, '2026-12-31')
         .replace(/{link_file}/g, 'https://example.com/sample.pdf');
 
-      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      // Gửi qua API Route nội bộ (server-side) để giữ Bot Token an toàn
+      const res = await fetch('/api/telegram/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: chatId,
+          chatId,
           text: `[TIN NHẮN THỬ NGHIỆM]\n\n${testText}`,
-          parse_mode: 'Markdown',
         }),
       });
 
-      const resData = await res.json();
+      const resData = await res.json().catch(() => ({}));
       if (resData.ok) {
         alert('Gửi tin nhắn thử nghiệm thành công! Hãy kiểm tra Telegram.');
       } else {
-        alert('Lỗi từ Telegram API: ' + resData.description);
+        alert('Lỗi từ Telegram API: ' + (resData.error || 'Không xác định'));
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Không xác định';

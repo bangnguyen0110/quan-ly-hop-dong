@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -25,11 +26,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-slate-100 text-slate-900 min-h-screen antialiased">
         <div className="flex min-h-screen">
           <Sidebar />
-          <main className={`flex-1 w-full ${pathname !== '/login' ? 'md:ml-64' : ''} transition-all`}>
+          <main className={`flex-1 w-full flex flex-col ${pathname !== '/login' ? 'md:ml-64' : ''} transition-all`}>
             {pathname !== '/login' && <Header />}
-            <div className={pathname !== '/login' ? 'p-4 md:p-8 pt-20 md:pt-6 max-w-7xl mx-auto' : ''}>
+            <div className={`flex-1 w-full ${pathname !== '/login' ? 'p-4 md:p-8 pt-20 md:pt-6 max-w-7xl mx-auto' : ''}`}>
               {children}
             </div>
+            <Footer />
           </main>
         </div>
       </body>
