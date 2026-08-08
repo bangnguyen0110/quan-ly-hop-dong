@@ -41,6 +41,7 @@ export default function HomePage() {
   // Success Modal State (sau khi xuất file)
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [createdContractFolderId, setCreatedContractFolderId] = useState<string | null>(null);
+  const [createdContractDocUrl, setCreatedContractDocUrl] = useState<string | null>(null);
 
   // Form State - Hợp Đồng
   const [title, setTitle] = useState('');
@@ -245,8 +246,9 @@ export default function HomePage() {
         alert(data.error || 'Lỗi xuất file');
         return;
       }
-      // Lưu folder_id để hiển thị trong modal
+      // Lưu folder_id và doc_url để hiển thị trong modal
       setCreatedContractFolderId(data.folder_id || null);
+      setCreatedContractDocUrl(data.doc_url || null);
       // Hiển thị popup thông báo thành công
       setShowSuccessModal(true);
     } catch (err: unknown) {
@@ -932,41 +934,55 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="flex flex-col gap-2.5">
+            {/* 3 nút bấm trong 1 hàng duy nhất: Đóng | Mở folder | Đến hợp đồng */}
+            <div className="grid grid-cols-3 gap-2 w-full mt-4">
               {/* Nút 1: Đóng */}
               <button
-                onClick={() => setShowSuccessModal(false)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+                type="button"
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  router.push('/');
+                }}
+                className="w-full text-xs sm:text-sm py-2 px-1 text-center truncate flex items-center justify-center gap-1.5 border border-slate-200 rounded-xl font-medium text-slate-700 hover:bg-slate-50 transition whitespace-nowrap"
               >
                 Đóng
               </button>
 
               {/* Nút 2: Mở folder */}
-              <button
-                onClick={() => {
-                  if (!createdContractFolderId) {
-                    alert('Mẫu hợp đồng này chưa được cấu hình Google Drive Folder ID.');
-                    return;
-                  }
-                  window.open('https://drive.google.com/drive/folders/' + createdContractFolderId, '_blank');
-                }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium shadow-sm transition"
-              >
-                <FolderOpen size={18} />
-                Mở folder
-              </button>
+              {createdContractFolderId ? (
+                <a
+                  href={'https://drive.google.com/drive/folders/' + createdContractFolderId}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full text-xs sm:text-sm py-2 px-1 text-center truncate flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium shadow-sm transition whitespace-nowrap"
+                >
+                  <FolderOpen size={16} />
+                  Mở folder
+                </a>
+              ) : (
+                <span className="w-full text-xs sm:text-sm py-2 px-1 text-center truncate flex items-center justify-center gap-1.5 bg-blue-300 text-white rounded-xl font-medium whitespace-nowrap opacity-70">
+                  <FolderOpen size={16} />
+                  Mở folder
+                </span>
+              )}
 
-              {/* Nút 3: Đến Hợp Đồng */}
-              <button
-                onClick={() => {
-                  setShowSuccessModal(false);
-                  // Có thể điều hướng đến trang danh sách hoặc giữ nguyên
-                }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm transition"
-              >
-                <ContractIcon size={18} />
-                Đến Hợp Đồng
-              </button>
+              {/* Nút 3: Đến hợp đồng */}
+              {createdContractDocUrl ? (
+                <a
+                  href={createdContractDocUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full text-xs sm:text-sm py-2 px-1 text-center truncate flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium shadow-sm transition whitespace-nowrap"
+                >
+                  <ContractIcon size={16} />
+                  Đến hợp đồng
+                </a>
+              ) : (
+                <span className="w-full text-xs sm:text-sm py-2 px-1 text-center truncate flex items-center justify-center gap-1.5 bg-emerald-300 text-white rounded-xl font-medium whitespace-nowrap opacity-70">
+                  <ContractIcon size={16} />
+                  Đến hợp đồng
+                </span>
+              )}
             </div>
           </div>
         </div>

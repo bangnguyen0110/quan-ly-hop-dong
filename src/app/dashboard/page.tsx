@@ -3,13 +3,17 @@
 import { useEffect, useState } from 'react';
 import { Contract } from '@/types/database';
 import { getContracts } from '@/lib/contracts';
-import { FileText, CalendarDays, DollarSign, CheckCircle2, Clock, XCircle, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { FileText, CalendarDays, DollarSign, CheckCircle2, Clock, XCircle, ChevronLeft, ChevronRight, X, LayoutList, LayoutGrid } from 'lucide-react';
 
 export default function DashboardPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
+
+  // View mode toggle state exists for future use; UI currently defaults to grid layout.
+  const toggleViewMode = () => setViewMode((prev) => (prev === 'grid' ? 'table' : 'grid'));
 
   async function fetchContracts() {
     try {
@@ -83,12 +87,22 @@ export default function DashboardPage() {
 
   return (
     <div className='space-y-6'>
-      <div className='bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80'>
-        <h1 className='text-2xl font-bold text-slate-900 flex items-center gap-2'>
-          <CalendarDays className='text-blue-600' />
-          Dashboard Tổng Quan
-        </h1>
-        <p className='text-sm text-slate-500 mt-1'>Dashboard tổng quan hợp đồng</p>
+      <div className='bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80 flex items-center justify-between'>
+        <div>
+          <h1 className='text-2xl font-bold text-slate-900 flex items-center gap-2'>
+            <CalendarDays className='text-blue-600' />
+            Dashboard Tổng Quan
+          </h1>
+          <p className='text-sm text-slate-500 mt-1'>Dashboard tổng quan hợp đồng</p>
+        </div>
+        <button
+          onClick={toggleViewMode}
+          className='flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition'
+          title='Chuyển đổi chế độ hiển thị'
+        >
+          {viewMode === 'grid' ? <LayoutGrid size={16} /> : <LayoutList size={16} />}
+          <span className='hidden sm:inline'>{viewMode === 'grid' ? 'Lưới' : 'Danh sách'}</span>
+        </button>
       </div>
 
       <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4'>
