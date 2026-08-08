@@ -29,7 +29,7 @@ export default function HomePage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
 
   // View Mode State (List vs Grid)
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // Modal State
   const [showContractModal, setShowContractModal] = useState(false);

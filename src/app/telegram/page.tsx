@@ -28,15 +28,15 @@ export default function TelegramPage() {
     text: string;
   } | null>(null);
 
-  const defaultTemplate = `🔔 *CẢNH BÁO HỢP ĐỒNG SẮP HẾT HẠN*
+  const DEFAULT_TELEGRAM_TEMPLATE = `🚨 *CẢNH BÁO HỢP ĐỒNG SẮP HẾT HẠN*
 
-📜 *Tên HĐ:* {ten_hd}
-🏷️ *Mã HĐ:* {ma_hd}
-👥 *Đối tác:* {doi_tac}
-💰 *Giá trị:* {gia_tri} VNĐ
-⏳ *Thời gian còn lại:* {ngay_con_lai} ngày
-📅 *Ngày hết hạn:* {ngay_het_han}
-📎 *File đính kèm:* {link_file}`;
+📌 *Mã HĐ:* {contract_code}
+🤝 *Tên HĐ:* {title}
+🏢 *Đối tác:* {partner_name}
+📅 *Ngày hết hạn:* {expiration_date}
+⏳ *Còn lại:* {days_left} ngày
+
+👉 *Vui lòng kiểm tra và xử lý gia hạn!*`;
 
   // Khóa lưu nháp tự động vào localStorage
   const FORM_DRAFT_KEY = "form_draft_telegram_settings";
@@ -51,17 +51,30 @@ export default function TelegramPage() {
       const { data: settings, error: settingsError } = await supabase
         .from("system_settings")
         .select("key, value")
-        .in("key", ["telegram_bot_token", "telegram_chat_id"]);
+        .in("key", [
+          "telegram_bot_token",
+          "telegram_chat_id",
+          "daily_notification_time",
+          "telegram_message_template",
+        ]);
       if (settingsError) throw settingsError;
 
       const configMap: Record<string, string> = {};
       for (const row of settings ?? []) {
-        configMap[row.key] = row.value || "";
+        configMap[row.key] = (row.value || "").trim();
       }
       setBotToken(configMap.telegram_bot_token || "");
       setChatId(configMap.telegram_chat_id || "");
+      setNotifyTime(
+        configMap.daily_notification_time?.trim()
+          ? configMap.daily_notification_time.trim()
+          : "11:35",
+      );
+      const templateFromSystem =
+        configMap.telegram_message_template?.trim() || "";
+      setMessageTemplate(templateFromSystem || DEFAULT_TELEGRAM_TEMPLATE);
 
-      // 2) Đọc thêm tùy chọn mở rộng từ telegram_settings (nếu có)
+      // 2) Đọc thêm tùy chọn mở rộng từ telegram_settings (nếu có) — dùng làm fallback khi system_settings thiếu
       const { data, error } = await supabase
         .from("telegram_settings")
         .select("*")
@@ -71,10 +84,14 @@ export default function TelegramPage() {
 
       if (data) {
         setIsActive(data.is_active ?? true);
-        setNotifyTime(data.notify_time || "11:35");
-        setMessageTemplate(data.message_template || defaultTemplate);
-      } else {
-        setMessageTemplate(defaultTemplate);
+        setNotifyTime((prev) =>
+          prev && prev !== "11:35" ? prev : data.notify_time || "11:35",
+        );
+        setMessageTemplate((prev) =>
+          prev && prev !== DEFAULT_TELEGRAM_TEMPLATE
+            ? prev
+            : data.message_template || DEFAULT_TELEGRAM_TEMPLATE,
+        );
       }
 
       // 3) Khôi phục nháp (draft) từ localStorage — ưu tiên hơn DB (bản nháp chưa lưu)
@@ -92,8 +109,12 @@ export default function TelegramPage() {
             if (draft.botToken !== undefined) setBotToken(draft.botToken);
             if (draft.chatId !== undefined) setChatId(draft.chatId);
             if (draft.isActive !== undefined) setIsActive(draft.isActive);
-            if (draft.notifyTime !== undefined) setNotifyTime(draft.notifyTime);
-            if (draft.messageTemplate !== undefined)
+            if (draft.notifyTime !== undefined && draft.notifyTime.trim() !== "")
+              setNotifyTime(draft.notifyTime);
+            if (
+              draft.messageTemplate !== undefined &&
+              draft.messageTemplate.trim() !== ""
+            )
               setMessageTemplate(draft.messageTemplate);
           }
         } catch (e) {
@@ -110,7 +131,7 @@ export default function TelegramPage() {
       setChatId("");
       setIsActive(true);
       setNotifyTime("11:35");
-      setMessageTemplate(defaultTemplate);
+      setMessageTemplate(DEFAULT_TELEGRAM_TEMPLATE);
     } finally {
       setLoading(false);
     }
@@ -164,6 +185,8 @@ export default function TelegramPage() {
       await Promise.all([
         upsertSystemSetting("telegram_bot_token", botToken),
         upsertSystemSetting("telegram_chat_id", chatId),
+        upsertSystemSetting("daily_notification_time", notifyTime),
+        upsertSystemSetting("telegram_message_template", messageTemplate),
       ]);
 
       // 2) Lưu thêm tùy chọn mở rộng vào telegram_settings (lỗi ở phần này KHÔNG chặn lưu chính)
@@ -226,13 +249,11 @@ export default function TelegramPage() {
     setStatusMsg(null);
     try {
       const testText = messageTemplate
-        .replace(/{ten_hd}/g, "Hợp đồng Dịch vụ CNTT mẫu")
-        .replace(/{ma_hd}/g, "HD-2026-TEST")
-        .replace(/{doi_tac}/g, "Công ty TNHH Mẫu")
-        .replace(/{gia_tri}/g, "100.000.000")
-        .replace(/{ngay_con_lai}/g, "7")
-        .replace(/{ngay_het_han}/g, "2026-12-31")
-        .replace(/{link_file}/g, "https://example.com/sample.pdf");
+        .replace(/{title}/g, "Hợp đồng Dịch vụ CNTT mẫu")
+        .replace(/{contract_code}/g, "HD-2026-TEST")
+        .replace(/{partner_name}/g, "Công ty TNHH Mẫu")
+        .replace(/{expiration_date}/g, "2026-12-31")
+        .replace(/{days_left}/g, "7");
 
       // Gửi qua API Route nội bộ (server-side) - truyền botToken & chatId vừa nhập
       const res = await fetch("/api/telegram", {
@@ -387,7 +408,7 @@ export default function TelegramPage() {
               </label>
               <button
                 type="button"
-                onClick={() => setMessageTemplate(defaultTemplate)}
+                onClick={() => setMessageTemplate(DEFAULT_TELEGRAM_TEMPLATE)}
                 className="text-xs text-blue-600 hover:underline"
               >
                 Khôi phục mẫu mặc định
@@ -395,6 +416,7 @@ export default function TelegramPage() {
             </div>
             <textarea
               rows={7}
+              placeholder={DEFAULT_TELEGRAM_TEMPLATE}
               value={messageTemplate}
               onChange={(e) => setMessageTemplate(e.target.value)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500 font-mono"
@@ -408,39 +430,29 @@ export default function TelegramPage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
               <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">
-                {"{ten_hd}"}
-              </code>
-              <span className="text-slate-600">Tên hợp đồng</span>
-
-              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">
-                {"{ma_hd}"}
+                {"{contract_code}"}
               </code>
               <span className="text-slate-600">Mã hợp đồng</span>
 
               <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">
-                {"{doi_tac}"}
+                {"{title}"}
+              </code>
+              <span className="text-slate-600">Tên hợp đồng</span>
+
+              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">
+                {"{partner_name}"}
               </code>
               <span className="text-slate-600">Đối tác (Bên B)</span>
 
               <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">
-                {"{gia_tri}"}
-              </code>
-              <span className="text-slate-600">Giá trị hợp đồng</span>
-
-              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">
-                {"{ngay_con_lai}"}
-              </code>
-              <span className="text-slate-600">Số ngày còn lại</span>
-
-              <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">
-                {"{ngay_het_han}"}
+                {"{expiration_date}"}
               </code>
               <span className="text-slate-600">Ngày hết hạn</span>
 
               <code className="bg-white px-2 py-1 rounded border text-blue-800 font-semibold">
-                {"{link_file}"}
+                {"{days_left}"}
               </code>
-              <span className="text-slate-600">Link tải file hợp đồng</span>
+              <span className="text-slate-600">Số ngày còn lại</span>
             </div>
           </div>
 
