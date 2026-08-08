@@ -57,13 +57,14 @@ export async function POST(request: Request) {
     }
 
     // Gửi trực tiếp tới Telegram Bot API
+    // Tạm thời bỏ parse_mode để tránh lỗi Markdown parse với ký tự đặc biệt.
+    // Nếu sau này cần định dạng, có thể chuyển sang 'HTML' sau khi escape ký tự.
     const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
         text: message,
-        parse_mode: 'Markdown',
       }),
     });
 

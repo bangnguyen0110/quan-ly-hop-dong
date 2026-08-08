@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Contract } from '@/types/database';
 import { getContracts } from '@/lib/contracts';
-import { FileText, CalendarDays, DollarSign, CheckCircle2, Clock, XCircle, ChevronLeft, ChevronRight, X, LayoutList, LayoutGrid } from 'lucide-react';
+import { FileText, CalendarDays, DollarSign, CheckCircle2, Clock, XCircle, ChevronLeft, ChevronRight, X, LayoutList, LayoutGrid, Send } from 'lucide-react';
 
 export default function DashboardPage() {
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -14,6 +14,24 @@ export default function DashboardPage() {
 
   // View mode toggle state exists for future use; UI currently defaults to grid layout.
   const toggleViewMode = () => setViewMode((prev) => (prev === 'grid' ? 'table' : 'grid'));
+
+  const [testingCron, setTestingCron] = useState(false);
+  const [cronTestResult, setCronTestResult] = useState<string | null>(null);
+
+  const handleTestCron = async () => {
+    setTestingCron(true);
+    setCronTestResult(null);
+    try {
+      const res = await fetch('/api/cron/check-expiration');
+      const data = await res.json().catch(() => ({}));
+      setCronTestResult(JSON.stringify(data, null, 2));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Không xác định';
+      setCronTestResult('Lỗi: ' + message);
+    } finally {
+      setTestingCron(false);
+    }
+  };
 
   async function fetchContracts() {
     try {
@@ -95,15 +113,31 @@ export default function DashboardPage() {
           </h1>
           <p className='text-sm text-slate-500 mt-1'>Dashboard tổng quan hợp đồng</p>
         </div>
-        <button
-          onClick={toggleViewMode}
-          className='flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition'
-          title='Chuyển đổi chế độ hiển thị'
-        >
-          {viewMode === 'grid' ? <LayoutGrid size={16} /> : <LayoutList size={16} />}
-          <span className='hidden sm:inline'>{viewMode === 'grid' ? 'Lưới' : 'Danh sách'}</span>
-        </button>
+        <div className='flex items-center gap-2'>
+          <button
+            onClick={toggleViewMode}
+            className='flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition'
+            title='Chuyển đổi chế độ hiển thị'
+          >
+            {viewMode === 'grid' ? <LayoutGrid size={16} /> : <LayoutList size={16} />}
+            <span className='hidden sm:inline'>{viewMode === 'grid' ? 'Lưới' : 'Danh sách'}</span>
+          </button>
+          <button
+            onClick={handleTestCron}
+            disabled={testingCron}
+            className='flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition disabled:opacity-60'
+          >
+            <Send size={16} />
+            <span className='hidden sm:inline'>{testingCron ? 'Đang chạy...' : 'Chạy thử Cron'}</span>
+          </button>
+        </div>
       </div>
+
+      {cronTestResult && (
+        <div className='bg-slate-900 text-slate-50 rounded-2xl p-4 text-xs font-mono whitespace-pre-wrap'>
+          {cronTestResult}
+        </div>
+      )}
 
       <div className='grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4'>
         <div className='bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2'>

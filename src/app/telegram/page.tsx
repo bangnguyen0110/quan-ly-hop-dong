@@ -27,6 +27,8 @@ export default function TelegramPage() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [testingCron, setTestingCron] = useState(false);
+  const [cronTestResult, setCronTestResult] = useState<string | null>(null);
 
   const DEFAULT_TELEGRAM_TEMPLATE = `🚨 *CẢNH BÁO HỢP ĐỒNG SẮP HẾT HẠN*
 
@@ -290,6 +292,21 @@ export default function TelegramPage() {
     }
   };
 
+  const handleTestCron = async () => {
+    setTestingCron(true);
+    setCronTestResult(null);
+    try {
+      const res = await fetch('/api/cron/check-expiration');
+      const data = await res.json().catch(() => ({}));
+      setCronTestResult(JSON.stringify(data, null, 2));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Không xác định';
+      setCronTestResult('Lỗi: ' + message);
+    } finally {
+      setTestingCron(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -299,6 +316,14 @@ export default function TelegramPage() {
         >
           <ArrowLeft size={16} /> Quay lại Trang chủ
         </Link>
+        <button
+          onClick={handleTestCron}
+          disabled={testingCron}
+          className='flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition disabled:opacity-60'
+        >
+          <Send size={16} />
+          <span>{testingCron ? 'Đang chạy...' : 'Chạy thử Cron Job ngay'}</span>
+        </button>
       </div>
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
         <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
@@ -328,6 +353,12 @@ export default function TelegramPage() {
             <AlertCircle size={16} />
           )}
           {statusMsg.text}
+        </div>
+      )}
+
+      {cronTestResult && (
+        <div className='bg-slate-900 text-slate-50 rounded-2xl p-4 text-xs font-mono whitespace-pre-wrap'>
+          {cronTestResult}
         </div>
       )}
 
