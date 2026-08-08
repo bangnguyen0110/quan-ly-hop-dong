@@ -29,12 +29,30 @@ export default function TelegramPage() {
   async function fetchSettings() {
     try {
       setLoading(true);
-      const { data, error } = await supabase.from('telegram_settings').select('*').limit(1).maybeSingle();
+
+      // 1) Đọc cấu hình Telegram động từ bảng system_settings (hiển thị lên input)
+      const { data: settings, error: settingsError } = await supabase
+        .from('system_settings')
+        .select('key, value')
+        .in('key', ['telegram_bot_token', 'telegram_chat_id']);
+      if (settingsError) throw settingsError;
+
+      const configMap: Record<string, string> = {};
+      for (const row of settings ?? []) {
+        configMap[row.key] = row.value || '';
+      }
+      setBotToken(configMap.telegram_bot_token || '');
+      setChatId(configMap.telegram_chat_id || '');
+
+      // 2) Đọc thêm tùy chọn mở rộng từ telegram_settings (nếu có)
+      const { data, error } = await supabase
+        .from('telegram_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
       if (error) throw error;
 
       if (data) {
-        setBotToken(data.bot_token || '');
-        setChatId(data.chat_id || '');
         setIsActive(data.is_active ?? true);
         setNotifyTime(data.notify_time || '11:35');
         setMessageTemplate(data.message_template || defaultTemplate);
@@ -42,7 +60,16 @@ export default function TelegramPage() {
         setMessageTemplate(defaultTemplate);
       }
     } catch (err: unknown) {
-      console.error('Lỗi lấy cấu hình:', err);
+      console.error(
+        'Lỗi lấy cấu hình:',
+        err instanceof Error ? err.message : JSON.stringify(err, null, 2)
+      );
+      // Fallback an toàn: gán giá trị rỗng để trang không crash
+      setBotToken('');
+      setChatId('');
+      setIsActive(true);
+      setNotifyTime('11:35');
+      setMessageTemplate(defaultTemplate);
     } finally {
       setLoading(false);
     }
@@ -54,49 +81,65 @@ export default function TelegramPage() {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
+  // Ghi 1 cặp key-value vào bảng system_settings (upsert theo key)
+  const upsertSystemSetting = async (key: string, value: string) => {
+    const { error } = await supabase
+      .from('system_settings')
+      .upsert(
+        { key, value: value.trim(), updated_at: new Date().toISOString() },
+        { onConflict: 'key' }
+      );
+    if (error) throw error;
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setStatusMsg(null);
 
     try {
-      const { data: existing, error: fetchErr } = await supabase
-        .from('telegram_settings')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
+      // 1) Lưu cấu hình Telegram động vào system_settings
+      await Promise.all([
+        upsertSystemSetting('telegram_bot_token', botToken),
+        upsertSystemSetting('telegram_chat_id', chatId),
+      ]);
 
-      if (fetchErr) throw fetchErr;
-
-      const payload = {
-        bot_token: botToken.trim(),
-        chat_id: chatId.trim(),
-        is_active: isActive,
-        notify_time: notifyTime,
-        message_template: messageTemplate,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (existing?.id) {
-        // Cập nhật cấu hình hiện tại
-        const { error: updateErr } = await supabase
+      // 2) Lưu thêm tùy chọn mở rộng vào telegram_settings (lỗi ở phần này KHÔNG chặn lưu chính)
+      try {
+        const { data: existing, error: fetchErr } = await supabase
           .from('telegram_settings')
-          .update(payload)
-          .eq('id', existing.id);
+          .select('id')
+          .limit(1)
+          .maybeSingle();
+        if (!fetchErr) {
+          const payload = {
+            bot_token: botToken.trim(),
+            chat_id: chatId.trim(),
+            is_active: isActive,
+            notify_time: notifyTime,
+            message_template: messageTemplate,
+            updated_at: new Date().toISOString(),
+          };
 
-        if (updateErr) throw updateErr;
-      } else {
-        // Thêm cấu hình mới nếu trống
-        const { error: insertErr } = await supabase
-          .from('telegram_settings')
-          .insert([payload]);
-
-        if (insertErr) throw insertErr;
+          if (existing?.id) {
+            const { error: updateErr } = await supabase
+              .from('telegram_settings')
+              .update(payload)
+              .eq('id', existing.id);
+            if (updateErr) throw updateErr;
+          } else {
+            const { error: insertErr } = await supabase
+              .from('telegram_settings')
+              .insert([payload]);
+            if (insertErr) throw insertErr;
+          }
+        }
+      } catch (extErr) {
+        console.warn('Không lưu được tùy chọn mở rộng (telegram_settings):', extErr);
       }
 
-      setStatusMsg({ type: 'success', text: 'Đã lưu cấu hình và thời gian gửi Telegram thành công!' });
+      setStatusMsg({ type: 'success', text: 'Đã lưu cấu hình Telegram thành công!' });
     } catch (err: unknown) {
-      // Hiển thị lỗi chính xác từ Database nếu chưa tạo cột
       const message = err instanceof Error ? err.message : 'Không thể lưu';
       setStatusMsg({ type: 'error', text: 'Lỗi khi lưu Database: ' + message });
     } finally {
@@ -104,14 +147,10 @@ export default function TelegramPage() {
     }
   };
 
-  // Nút gửi thử tin nhắn
+  // Nút Kiểm tra kết nối - gửi tin nhắn test qua API route /api/telegram
   const handleTestNotification = async () => {
-    if (!botToken || !chatId) {
-      alert('Vui lòng nhập Bot Token và Chat ID trước khi thử nghiệm!');
-      return;
-    }
-
     setTesting(true);
+    setStatusMsg(null);
     try {
       const testText = messageTemplate
         .replace(/{ten_hd}/g, 'Hợp đồng Dịch vụ CNTT mẫu')
@@ -122,30 +161,32 @@ export default function TelegramPage() {
         .replace(/{ngay_het_han}/g, '2026-12-31')
         .replace(/{link_file}/g, 'https://example.com/sample.pdf');
 
-      // Gửi qua API Route nội bộ (server-side) để giữ Bot Token an toàn
-      // Đính kèm Authorization header (Supabase Anon Key) theo chuẩn authenticated endpoint
-      const res = await fetch('/api/telegram/send', {
+      // Gửi qua API Route nội bộ (server-side) - truyền botToken & chatId vừa nhập
+      const res = await fetch('/api/telegram', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chatId,
-          text: `[TIN NHẮN THỬ NGHIỆM]\n\n${testText}`,
+          message: `[TIN NHẮN THỬ NGHIỆM]\n\n${testText}`,
           botToken,
+          chatId,
         }),
       });
 
       const resData = await res.json().catch(() => ({}));
       if (resData.ok) {
-        alert('Gửi tin nhắn thử nghiệm thành công! Hãy kiểm tra Telegram.');
+        setStatusMsg({
+          type: 'success',
+          text: 'Kết nối thành công! Đã gửi tin nhắn thử nghiệm, hãy kiểm tra Telegram.',
+        });
       } else {
-        alert('Lỗi từ Telegram API: ' + (resData.error || 'Không xác định'));
+        setStatusMsg({
+          type: 'error',
+          text: 'Kiểm tra kết nối thất bại: ' + (resData.error || 'Không xác định'),
+        });
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Không xác định';
-      alert('Không thể kết nối Telegram: ' + message);
+      setStatusMsg({ type: 'error', text: 'Không thể kết nối Telegram: ' + message });
     } finally {
       setTesting(false);
     }
@@ -298,7 +339,7 @@ export default function TelegramPage() {
               disabled={testing}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition"
             >
-              <Send size={16} /> {testing ? 'Đang gửi...' : 'Gửi thử tin nhắn qua Telegram'}
+              <Send size={16} /> {testing ? 'Đang kiểm tra...' : 'Kiểm tra kết nối'}
             </button>
 
             <button
