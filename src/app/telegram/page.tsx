@@ -26,11 +26,7 @@ export default function TelegramPage() {
 📅 *Ngày hết hạn:* {ngay_het_han}
 📎 *File đính kèm:* {link_file}`;
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
+  async function fetchSettings() {
     try {
       setLoading(true);
       const { data, error } = await supabase.from('telegram_settings').select('*').limit(1).maybeSingle();
@@ -45,12 +41,18 @@ export default function TelegramPage() {
       } else {
         setMessageTemplate(defaultTemplate);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Lỗi lấy cấu hình:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps -- data fetching on mount */
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,9 +95,10 @@ export default function TelegramPage() {
       }
 
       setStatusMsg({ type: 'success', text: 'Đã lưu cấu hình và thời gian gửi Telegram thành công!' });
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Hiển thị lỗi chính xác từ Database nếu chưa tạo cột
-      setStatusMsg({ type: 'error', text: 'Lỗi khi lưu Database: ' + (err.message || 'Không thể lưu') });
+      const message = err instanceof Error ? err.message : 'Không thể lưu';
+      setStatusMsg({ type: 'error', text: 'Lỗi khi lưu Database: ' + message });
     } finally {
       setSaving(false);
     }
@@ -135,8 +138,9 @@ export default function TelegramPage() {
       } else {
         alert('Lỗi từ Telegram API: ' + resData.description);
       }
-    } catch (err: any) {
-      alert('Không thể kết nối Telegram: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Không xác định';
+      alert('Không thể kết nối Telegram: ' + message);
     } finally {
       setTesting(false);
     }

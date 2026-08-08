@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { ContractAppendix, Contract } from '@/types/database';
-import { getContracts } from '@/lib/contracts';
+import { getContracts, updateContract } from '@/lib/contracts';
 import {
   getAppendices,
   createAppendix,
@@ -12,8 +12,8 @@ import {
 } from '@/lib/appendices';
 import { AppendixSchema } from '@/lib/validations';
 import {
-  FileSignature, Plus, Trash2, Download, Search,
-  Eye, Calendar, DollarSign, X, Pencil, FileText, Loader2, Paperclip, ArrowLeft
+  FileSignature, Plus, Trash2, Search,
+  Eye, Calendar, DollarSign, X, Pencil, FileText, Loader2, Paperclip, ArrowLeft, Save
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -38,13 +38,15 @@ export default function AppendicesPage() {
   const [endDate, setEndDate] = useState('');
   const [content, setContent] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [fileUrl, setFileUrl] = useState('');
+  const [updateParentContract, setUpdateParentContract] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  async function fetchData() {
     try {
       setLoading(true);
       const [appendicesData, contractsData] = await Promise.all([
@@ -53,12 +55,12 @@ export default function AppendicesPage() {
       ]);
       setAppendices(appendicesData);
       setContracts(contractsData);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Lỗi khi nạp dữ liệu phụ lục:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const resetForm = () => {
     setEditingAppendix(null);
@@ -69,6 +71,8 @@ export default function AppendicesPage() {
     setEndDate('');
     setContent('');
     setFile(null);
+    setFileUrl('');
+    setUpdateParentContract(false);
     setFormError(null);
   };
 
@@ -86,12 +90,14 @@ export default function AppendicesPage() {
     setValue(appendix.value || 0);
     setEndDate(appendix.end_date || '');
     setContent(appendix.content || '');
+    setFileUrl(appendix.file_url || '');
+    setUpdateParentContract(false);
     setFile(null);
     setFormError(null);
     setShowModal(true);
   };
 
-  const handleOpenDetailModal = (appendix: ContractAppendix) => {
+    const handleOpenDetailModal = (appendix: ContractAppendix) => {
     setSelectedAppendix(appendix);
     setShowDetailModal(true);
   };
@@ -107,6 +113,8 @@ export default function AppendicesPage() {
       value: Number(value),
       end_date: endDate,
       content: content || null,
+      file_url: fileUrl || null,
+      update_parent_contract: updateParentContract,
     };
 
     const validationResult = AppendixSchema.safeParse(payloadRaw);
@@ -118,9 +126,11 @@ export default function AppendicesPage() {
 
     try {
       setSaving(true);
-      let fileUrl = editingAppendix ? editingAppendix.file_url : '';
+      let resolvedFileUrl = editingAppendix ? editingAppendix.file_url : '';
       if (file) {
-        fileUrl = await uploadAppendixFile(file);
+        resolvedFileUrl = await uploadAppendixFile(file);
+      } else if (fileUrl) {
+        resolvedFileUrl = fileUrl;
       }
 
       const payload = {
@@ -129,7 +139,7 @@ export default function AppendicesPage() {
         appendix_code: appendixCode || undefined,
         value: Number(value),
         end_date: endDate,
-        file_url: fileUrl || undefined,
+        file_url: resolvedFileUrl || undefined,
         content: content || undefined,
       };
 
@@ -139,11 +149,20 @@ export default function AppendicesPage() {
         await createAppendix(payload);
       }
 
+      // Nếu chọn tự động cập nhật, cập nhật end_date và value vào hợp đồng gốc
+      if (updateParentContract) {
+        await updateContract(contractId, {
+          end_date: endDate,
+          value: Number(value),
+        });
+      }
+
       setShowModal(false);
       resetForm();
       fetchData();
-    } catch (err: any) {
-      setFormError('Lỗi khi lưu phụ lục: ' + (err.message || 'Thao tác thất bại'));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Thao tác thất bại';
+      setFormError('Lỗi khi lưu phụ lục: ' + message);
     } finally {
       setSaving(false);
     }
@@ -154,8 +173,9 @@ export default function AppendicesPage() {
       try {
         await deleteAppendix(id);
         fetchData();
-      } catch (err: any) {
-        alert('Lỗi khi xóa: ' + err.message);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Thao tác thất bại';
+        alert('Lỗi khi xóa: ' + message);
       }
     }
   };
@@ -170,7 +190,7 @@ export default function AppendicesPage() {
     return matchesSearch && matchesContract;
   });
 
-  const formatCurrency = (val: number) => {
+    const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
   };
 
@@ -229,6 +249,7 @@ export default function AppendicesPage() {
           </div>
         </div>
       </div>
+
       {/* TABLE */}
       <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 overflow-hidden">
         {loading ? (
@@ -333,7 +354,266 @@ export default function AppendicesPage() {
           </div>
         )}
       </div>
-      {/* Modals Placeholder */}
+     
+
+      {/* MODAL THÊM / SỬA PHỤ LỤC */}
+      {showModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b border-slate-200">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <FileText className="text-blue-600" size={20} />
+                {editingAppendix ? 'Chỉnh Sửa Phụ Lục' : 'Thêm Phụ Lục Mới'}
+              </h2>
+              <button
+                onClick={() => { setShowModal(false); resetForm(); }}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              {formError && (
+                <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200">
+                                  {formError}
+                </div>
+              )}
+
+              {/* Chọn Hợp đồng gốc */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Hợp đồng gốc <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={contractId}
+                  onChange={(e) => setContractId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Chọn hợp đồng...</option>
+                  {contracts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title} {c.contract_code ? `(${c.contract_code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Mã phụ lục & Tiêu đề */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Mã phụ lục (VD: PL01/HD-2026)
+                  </label>
+                  <input
+                    type="text"
+                    value={appendixCode}
+                    onChange={(e) => setAppendixCode(e.target.value)}
+                    placeholder="PL01/HD-2026"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Tiêu đề / Nội dung phụ lục <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Gia hạn hợp đồng & Bổ sung ngân sách"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  />
+                                </div>
+              </div>
+
+              {/* Giá trị & Ngày hết hạn */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Giá trị điều chỉnh (VNĐ)
+                  </label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3.5 top-3 text-slate-400" size={18} />
+                    <input
+                      type="number"
+                      value={value}
+                      onChange={(e) => setValue(Number(e.target.value))}
+                      placeholder="0"
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Ngày hết hạn mới (Ngày gia hạn) <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3.5 top-3 text-slate-400" size={18} />
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Checkbox tự động cập nhật */}
+              <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200/60">
+                <input
+                  type="checkbox"
+                  id="updateParentContract"
+                  checked={updateParentContract}
+                  onChange={(e) => setUpdateParentContract(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 text-blue-600 focus:ring-blue-500 border-slate-300 rounded"
+                />
+                <label htmlFor="updateParentContract" className="text-sm text-slate-700">
+                  <span className="font-medium">Tự động cập nhật</span> Ngày hết hạn và Giá trị mới này vào Hợp đồng gốc.
+                </label>
+              </div>
+
+              {/* File URL */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Đường dẫn File phụ lục (Google Drive Link / PDF)
+                </label>
+                <input
+                  type="url"
+                  value={fileUrl}
+                  onChange={(e) => setFileUrl(e.target.value)}
+                  placeholder="https://drive.google.com/..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Upload File */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  Hoặc tải lên tệp tin
+                </label>
+                <input
+                  type="file"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm text-slate-600 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+
+              {/* Nút lưu & Hủy */}
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowModal(false);
+                    resetForm();
+                  }}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition text-sm"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-xl shadow-xs transition text-sm disabled:opacity-50"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="animate-spin" size={16} />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      <span>{editingAppendix ? 'Cập Nhật Phụ Lục' : 'Tạo Phụ Lục'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL XEM CHI TIẾT PHỤ LỤC */}
+      {showDetailModal && selectedAppendix && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
+            <div className="flex justify-between items-center border-b pb-3">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <FileSignature className="text-blue-600" size={20} />
+                Chi Tiết Phụ Lục
+              </h3>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-slate-500 block text-xs">Mã phụ lục:</span>
+                <span className="font-semibold text-slate-800">{selectedAppendix.appendix_code || 'Không có'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-xs">Tiêu đề:</span>
+                <span className="font-semibold text-slate-800">{selectedAppendix.title}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-xs">Hợp đồng cha:</span>
+                <span className="font-semibold text-slate-800">{selectedAppendix.contract?.title || 'Không rõ'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-xs">Giá trị điều chỉnh:</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(selectedAppendix.value)}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-xs">Ngày hết hạn mới:</span>
+                <span className="font-semibold text-slate-800">{selectedAppendix.end_date ? new Date(selectedAppendix.end_date).toLocaleDateString('vi-VN') : 'N/A'}</span>
+              </div>
+              {selectedAppendix.content && (
+                <div>
+                  <span className="text-slate-500 block text-xs">Ghi chú / Nội dung:</span>
+                  <p className="text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100 mt-1">{selectedAppendix.content}</p>
+                </div>
+              )}
+              {selectedAppendix.file_url && (
+                <div>
+                  <span className="text-slate-500 block text-xs mb-1">Tệp đính kèm:</span>
+                  <a
+                    href={selectedAppendix.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 font-medium hover:bg-blue-100 transition"
+                  >
+                    <Paperclip size={14} />
+                    Mở tệp tin phụ lục
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 border-t flex justify-end">
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl text-sm transition"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+
+
+
+

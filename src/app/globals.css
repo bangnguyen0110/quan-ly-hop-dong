@@ -39,3 +39,6 @@ textarea, input, option, select, span{
 .flex.items-center.gap-2.font-bold.text-white.tracking-wide span {
     color: #fff;
 }
+.pt-20 {
+    padding-top: calc(var(--spacing) * 5);
+}

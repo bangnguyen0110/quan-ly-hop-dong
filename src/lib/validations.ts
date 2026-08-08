@@ -9,10 +9,12 @@ export const ContractSchema = z.object({
 });
 
 export const AppendixSchema = z.object({
-  contract_id: z.string().uuid('Vui lòng chọn hợp đồng'),
+    contract_id: z.string().uuid('Vui lòng chọn hợp đồng'),
   title: z.string().min(3, 'Tên phụ lục phải từ 3 ký tự').max(200),
   appendix_code: z.string().optional().nullable(),
   value: z.number().nonnegative('Giá trị phụ lục không được âm'),
   end_date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Ngày không hợp lệ'),
   content: z.string().optional().nullable(),
+  file_url: z.string().url('Đường dẫn file không hợp lệ').optional().nullable(),
+  update_parent_contract: z.boolean().optional(),
 });

@@ -20,6 +20,7 @@ export default function TemplateModal({ show, onClose, editObj, onSubmit }: Temp
   const [l, setL] = useState('');
   const [t, setT] = useState<'text' | 'number' | 'date'>('text');
 
+  /* eslint-disable react-hooks/set-state-in-effect -- sync form when the record being edited changes */
   useEffect(() => {
     if (editObj) {
       setName(editObj.name || ''); setDocId(editObj.google_doc_id || '');
@@ -28,6 +29,7 @@ export default function TemplateModal({ show, onClose, editObj, onSubmit }: Temp
       setName(''); setDocId(''); setScriptUrl(''); setFields([]);
     }
   }, [editObj, show]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!show) return null;
 
@@ -75,7 +77,7 @@ export default function TemplateModal({ show, onClose, editObj, onSubmit }: Temp
               <input type="text" value={k} onChange={e => setK(e.target.value)} placeholder="Key" className="px-2 border rounded-lg text-xs font-mono" />
               <input type="text" value={l} onChange={e => setL(e.target.value)} placeholder="Label" className="px-2 border rounded-lg text-xs" />
               <div className="flex gap-1">
-                <select value={t} onChange={e => setT(e.target.value as any)} className="px-1 border rounded-lg text-xs"><option value="text">T</option><option value="number">N</option><option value="date">D</option></select>
+                <select value={t} onChange={e => setT(e.target.value as 'text' | 'number' | 'date')} className="px-1 border rounded-lg text-xs"><option value="text">T</option><option value="number">N</option><option value="date">D</option></select>
                 <button type="button" onClick={addField} className="bg-slate-900 text-white px-2 rounded-lg text-xs">+</button>
               </div>
             </div>

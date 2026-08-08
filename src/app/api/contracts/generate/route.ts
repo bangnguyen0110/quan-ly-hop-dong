@@ -40,7 +40,13 @@ export async function POST(request: Request) {
     }
 
     // Lấy thông tin template
-    const template = contract.template as any;
+    // Định nghĩa kiểu rõ ràng dựa trên bảng contract_templates
+    type TemplateInfo = {
+      google_doc_id: string;
+      google_folder_id?: string;
+      apps_script_url?: string;
+    };
+    const template = contract.template as TemplateInfo | null;
     if (!template) {
       return NextResponse.json(
         { error: 'Không tìm thấy thông tin Mẫu hợp đồng!' },
@@ -68,7 +74,7 @@ export async function POST(request: Request) {
     }
 
     // 4. Tổng hợp bảng dữ liệu fields
-    const fields: Record<string, any> = {
+    const fields: Record<string, string | number> = {
       // Các trường cấp cao nhất
       title: contract.title || '',
       contract_code: contract.contract_code || '',
@@ -77,7 +83,7 @@ export async function POST(request: Request) {
       value: contract.value || 0,
       end_date: contract.end_date || '',
       // Trải toàn bộ custom_fields vào fields
-      ...(contract.custom_fields || {}),
+      ...(contract.custom_fields as Record<string, string | number> || {}),
     };
 
     // 5. Payload gửi sang Google Apps Script
@@ -106,7 +112,7 @@ export async function POST(request: Request) {
     }
 
     // 6. Cập nhật doc_url và pdf_url vào bảng contracts
-    const updateData: any = {};
+    const updateData: { doc_url?: string; pdf_url?: string } = {};
     if (result.doc_url) {
       updateData.doc_url = result.doc_url;
     }
@@ -135,10 +141,11 @@ export async function POST(request: Request) {
       folder_id: google_folder_id || null,
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ Lỗi trong API generate contract:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Có lỗi xảy ra khi tạo hợp đồng';
     return NextResponse.json(
-      { error: error.message || 'Có lỗi xảy ra khi tạo hợp đồng' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

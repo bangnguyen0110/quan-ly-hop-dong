@@ -54,7 +54,7 @@ export default function HomePage() {
   const [file, setFile] = useState<File | null>(null);
   // Form State - Template & Custom Fields
   const [templateId, setTemplateId] = useState('');
-  const [customFields, setCustomFields] = useState<Record<string, any>>({});
+  const [customFields, setCustomFields] = useState<Record<string, string>>({});
 
   // Form State - Loại Hợp Đồng
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -63,7 +63,7 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  async function fetchData() {
     try {
       setLoading(true);
       const [contractsData, categoriesData, templatesData] = await Promise.all([
@@ -79,7 +79,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   // Tính số ngày còn lại tới hạn
   const getDaysLeft = (endDateStr: string) => {
@@ -103,7 +103,7 @@ export default function HomePage() {
     setCustomDays(contract.custom_notify_days?.join(', ') || '1, 7');
     setCategoryId(contract.category_id || '');
     setTemplateId(contract.template_id || '');
-    setCustomFields(contract.custom_fields || {});
+    setCustomFields((contract.custom_fields as Record<string, string>) || {});
     setFile(null);
     setShowContractModal(true);
   };
@@ -150,8 +150,9 @@ export default function HomePage() {
       setShowContractModal(false);
       resetContractForm();
       fetchData();
-    } catch (err: any) {
-      alert('Lỗi khi lưu hợp đồng: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Không xác định';
+      alert('Lỗi khi lưu hợp đồng: ' + message);
     } finally {
       setUploading(false);
     }
@@ -165,8 +166,9 @@ export default function HomePage() {
       await createCategory(newCategoryName.trim());
       setNewCategoryName('');
       fetchData();
-    } catch (err: any) {
-      alert('Lỗi thêm loại hợp đồng: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Không xác định';
+      alert('Lỗi thêm loại hợp đồng: ' + message);
     }
   };
 
@@ -211,14 +213,14 @@ export default function HomePage() {
       return;
     }
     // Khởi tạo object custom_fields với các key của field_definitions (giữ giá trị cũ nếu có)
-    const initial: Record<string, any> = {};
+    const initial: Record<string, string> = {};
     tpl.field_definitions?.forEach((f) => {
       initial[f.key] = customFields[f.key] !== undefined ? customFields[f.key] : '';
     });
     setCustomFields(initial);
   };
 
-  const setCustomFieldValue = (key: string, val: any) => {
+  const setCustomFieldValue = (key: string, val: string) => {
     setCustomFields((prev) => ({ ...prev, [key]: val }));
   };
 
@@ -247,8 +249,9 @@ export default function HomePage() {
       setCreatedContractFolderId(data.folder_id || null);
       // Hiển thị popup thông báo thành công
       setShowSuccessModal(true);
-    } catch (err: any) {
-      alert('Lỗi tạo hợp đồng: ' + (err.message || err));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : JSON.stringify(err);
+      alert('Lỗi tạo hợp đồng: ' + message);
     } finally {
       setGeneratingId(null);
     }
@@ -274,25 +277,25 @@ export default function HomePage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header & Quick Action */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200/80 gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200/80 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
             <FileText className="text-blue-600" /> Quản Lý Hợp Đồng
           </h1>
-          <p className="text-sm text-slate-500 mt-1">Hệ thống phân loại và cảnh báo mốc hết hạn tự động</p>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">Hệ thống phân loại và cảnh báo mốc hết hạn tự động</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <button
             onClick={() => setShowCategoryModal(true)}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl flex items-center justify-center gap-2 font-medium text-sm transition"
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 sm:px-4 py-2 rounded-xl flex items-center justify-center gap-2 font-medium text-xs sm:text-sm transition"
           >
             <Tag size={16} /> Quản lý loại HĐ
           </button>
           <button
             onClick={() => router.push('/contracts/new')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 font-medium text-sm transition shadow-md shadow-blue-600/20"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-5 py-2 rounded-xl flex items-center justify-center gap-2 font-medium text-xs sm:text-sm transition shadow-md shadow-blue-600/20"
           >
             <Plus size={18} /> Thêm hợp đồng
           </button>
@@ -300,41 +303,41 @@ export default function HomePage() {
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <div 
           onClick={() => setFilterType('all')}
-          className={`cursor-pointer p-4 rounded-2xl border shadow-sm transition ${filterType === 'all' ? 'bg-blue-50 border-blue-500' : 'bg-white border-slate-200'}`}
+          className={`cursor-pointer p-3 sm:p-4 rounded-2xl border shadow-sm transition ${filterType === 'all' ? 'bg-blue-50 border-blue-500' : 'bg-white border-slate-200'}`}
         >
-          <p className="text-xs text-slate-500 font-semibold uppercase">Tổng số HĐ</p>
-          <h3 className="text-2xl font-bold text-slate-900 mt-1">{contracts.length}</h3>
+          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase">Tổng số HĐ</p>
+          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{contracts.length}</h3>
         </div>
 
         <div 
           onClick={() => setFilterType('active')}
-          className={`cursor-pointer p-4 rounded-2xl border shadow-sm transition ${filterType === 'active' ? 'bg-emerald-50 border-emerald-500' : 'bg-white border-slate-200'}`}
+          className={`cursor-pointer p-3 sm:p-4 rounded-2xl border shadow-sm transition ${filterType === 'active' ? 'bg-emerald-50 border-emerald-500' : 'bg-white border-slate-200'}`}
         >
-          <p className="text-xs text-slate-500 font-semibold uppercase">Còn hạn</p>
-          <h3 className="text-2xl font-bold text-emerald-600 mt-1">
+          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase">Còn hạn</p>
+          <h3 className="text-xl sm:text-2xl font-bold text-emerald-600 mt-1">
             {contracts.filter((c) => getDaysLeft(c.end_date) >= 0).length}
           </h3>
         </div>
 
         <div 
           onClick={() => setFilterType('7days')}
-          className={`cursor-pointer p-4 rounded-2xl border shadow-sm transition ${filterType === '7days' ? 'bg-amber-50 border-amber-500' : 'bg-white border-slate-200'}`}
+          className={`cursor-pointer p-3 sm:p-4 rounded-2xl border shadow-sm transition ${filterType === '7days' ? 'bg-amber-50 border-amber-500' : 'bg-white border-slate-200'}`}
         >
-          <p className="text-xs text-slate-500 font-semibold uppercase">Còn ≤ 7 ngày</p>
-          <h3 className="text-2xl font-bold text-amber-600 mt-1">
+          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase">Còn ≤ 7 ngày</p>
+          <h3 className="text-xl sm:text-2xl font-bold text-amber-600 mt-1">
             {contracts.filter((c) => getDaysLeft(c.end_date) >= 0 && getDaysLeft(c.end_date) <= 7).length}
           </h3>
         </div>
 
         <div 
           onClick={() => setFilterType('expired')}
-          className={`cursor-pointer p-4 rounded-2xl border shadow-sm transition ${filterType === 'expired' ? 'bg-red-50 border-red-500' : 'bg-white border-slate-200'}`}
+          className={`cursor-pointer p-3 sm:p-4 rounded-2xl border shadow-sm transition ${filterType === 'expired' ? 'bg-red-50 border-red-500' : 'bg-white border-slate-200'}`}
         >
-          <p className="text-xs text-slate-500 font-semibold uppercase">Đã hết hạn</p>
-          <h3 className="text-2xl font-bold text-red-600 mt-1">
+          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold uppercase">Đã hết hạn</p>
+          <h3 className="text-xl sm:text-2xl font-bold text-red-600 mt-1">
             {contracts.filter((c) => getDaysLeft(c.end_date) < 0).length}
           </h3>
         </div>

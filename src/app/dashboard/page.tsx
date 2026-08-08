@@ -11,9 +11,7 @@ export default function DashboardPage() {
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  useEffect(() => { fetchContracts(); }, []);
-
-  const fetchContracts = async () => {
+  async function fetchContracts() {
     try {
       setLoading(true);
       const data = await getContracts();
@@ -23,7 +21,11 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
+
+  /* eslint-disable react-hooks/set-state-in-effect -- data fetching on mount */
+  useEffect(() => { fetchContracts(); }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const totalContracts = contracts.length;
   const totalValue = contracts.reduce((sum, c) => sum + (Number(c.value) || 0), 0);

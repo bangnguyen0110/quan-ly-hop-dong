@@ -1,7 +1,7 @@
 'use client';
 
 import './globals.css';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -9,17 +9,13 @@ import Header from '@/components/Header';
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
     // Kiểm tra login ở Client side
     if (typeof window !== 'undefined') {
       const authUser = localStorage.getItem('auth_user');
       if (!authUser && pathname !== '/login') {
-        setAuthorized(false);
         router.push('/login');
-      } else {
-        setAuthorized(true);
       }
     }
   }, [pathname, router]);

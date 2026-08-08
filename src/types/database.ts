@@ -37,8 +37,9 @@ export interface Contract {
   custom_notify_days: number[];
   category_id?: string;
   category?: Category;
-  custom_fields?: Record<string, any>; // Lưu dữ liệu trường động JSONB
+  custom_fields?: Record<string, unknown>; // Lưu dữ liệu trường động JSONB
   template_id?: string; // ID mẫu hợp đồng sử dụng
+  folder_id?: string; // ID thư mục Google Drive (nếu có)
   created_at?: string;
   appendices?: ContractAppendix[];
 }

@@ -16,7 +16,6 @@ export default function NewContractPage() {
 
   // State cho popup thông báo thành công
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [createdContractId, setCreatedContractId] = useState<string | null>(null);
   const [createdContractFolderId, setCreatedContractFolderId] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
@@ -29,7 +28,8 @@ export default function NewContractPage() {
   const [categoryId, setCategoryId] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [templateId, setTemplateId] = useState('');
-  const [customFields, setCustomFields] = useState<Record<string, any>>({});
+  const [customFields, setCustomFields] = useState<Record<string, string>>({});
+  const [folderId, setFolderId] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -52,16 +52,23 @@ export default function NewContractPage() {
     const tpl = templates.find((t) => t.id === eid);
     if (!tpl) {
       setCustomFields({});
+      setFolderId('');
       return;
     }
-    const initial: Record<string, any> = {};
+    const initial: Record<string, string> = {};
     tpl.field_definitions?.forEach((f) => {
       initial[f.key] = '';
     });
     setCustomFields(initial);
+    // Tự động lấy Folder ID từ template nếu có
+    if (tpl.google_folder_id) {
+      setFolderId(tpl.google_folder_id);
+    } else {
+      setFolderId('');
+    }
   };
 
-  const setCustomFieldValue = (key: string, val: any) => {
+  const setCustomFieldValue = (key: string, val: string) => {
     setCustomFields((prev) => ({ ...prev, [key]: val }));
   };
 
@@ -93,13 +100,11 @@ export default function NewContractPage() {
         custom_notify_days: notifyDaysArray.length > 0 ? notifyDaysArray : [1, 7],
         category_id: categoryId || undefined,
         template_id: templateId || undefined,
+        folder_id: folderId || undefined,
         custom_fields: Object.keys(customFields).length > 0 ? customFields : undefined,
       };
-      const contractResult = await createContract(payload as any);
-
-      // Lưu ID hợp đồng vừa tạo
+      const contractResult = await createContract(payload);
       const newContractId = contractResult?.[0]?.id || null;
-      setCreatedContractId(newContractId);
 
       // Lưu thông tin folder từ template để hiển thị trong modal
       const selectedTpl = templates.find((t) => t.id === templateId);
@@ -132,8 +137,9 @@ export default function NewContractPage() {
 
       // Hiển thị popup thông báo thành công
       setShowSuccessModal(true);
-    } catch (err: any) {
-      alert('Lỗi khi lưu hợp đồng: ' + (err.message || err));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : JSON.stringify(err);
+      alert('Lỗi khi lưu hợp đồng: ' + message);
     } finally {
       setUploading(false);
     }
@@ -143,13 +149,13 @@ export default function NewContractPage() {
     'w-full border border-slate-300 rounded-xl p-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition bg-white';
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+    <div className="p-4 sm:p-6 max-w-3xl mx-auto space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 flex items-center gap-2">
             <FileText className="text-blue-600" /> Thêm Hợp Đồng Mới
           </h1>
-          <p className="text-slate-500 text-sm mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Điền thông tin, chọn mẫu Google Doc và nhập dữ liệu tùy chỉnh.
           </p>
         </div>
@@ -168,7 +174,7 @@ export default function NewContractPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-6 space-y-4 sm:space-y-5">
           <div>
             <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Thông Tin Cơ Bản</h2>
             <div className="space-y-4">
@@ -176,7 +182,7 @@ export default function NewContractPage() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1">Tên Hợp Đồng <span className="text-red-500">*</span></label>
                 <input type="text" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="VD: Hợp đồng Dịch vụ" className={inputCls} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Loại Hợp Đồng</label>
                   <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputCls}>
@@ -191,7 +197,7 @@ export default function NewContractPage() {
                   <input type="text" value={contractCode} onChange={(e) => setContractCode(e.target.value)} placeholder="HD-2025-001" className={inputCls} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
                     Bên A (Đối Tác / Khách Hàng) <span className="text-red-500">*</span>
@@ -218,7 +224,7 @@ export default function NewContractPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Giá trị (VNĐ)</label>
                   <input type="number" value={value} onChange={(e) => setValue(Number(e.target.value))} className={inputCls} />
@@ -245,6 +251,25 @@ export default function NewContractPage() {
                     <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Folder ID (Google Drive) <span className="text-slate-400 font-normal">(Tùy chọn)</span>
+                </label>
+                <input
+                  type="text"
+                  value={folderId}
+                  onChange={(e) => setFolderId(e.target.value)}
+                  placeholder="Tự động lấy từ template hoặc nhập thủ công"
+                  className={inputCls + ' font-mono text-xs'}
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  {folderId ? (
+                    <span className="text-emerald-600">✓ Đã có Folder ID từ template</span>
+                  ) : (
+                    'Nhập Folder ID để lưu thông tin thư mục Google Drive'
+                  )}
+                </p>
               </div>
               {selectedTemplate && selectedTemplate.field_definitions?.length > 0 ? (
                 <div className="space-y-3 bg-slate-50 rounded-xl p-4 border border-slate-200/70">
@@ -326,6 +351,43 @@ export default function NewContractPage() {
               </p>
             </div>
 
+            {/* Hiển thị thông tin Folder ID nếu có */}
+            {(createdContractFolderId || folderId) && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
+                <p className="text-xs font-semibold text-blue-900 flex items-center gap-1.5">
+                  <FolderOpen size={14} />
+                  Thông tin thư mục Google Drive
+                </p>
+                <div className="space-y-1.5">
+                  {createdContractFolderId && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-blue-700">Folder ID (từ template):</span>
+                      <code className="text-[11px] bg-white px-2 py-1 rounded border border-blue-200 text-blue-900 font-mono">
+                        {createdContractFolderId}
+                      </code>
+                    </div>
+                  )}
+                  {folderId && folderId !== createdContractFolderId && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-blue-700">Folder ID (thủ công):</span>
+                      <code className="text-[11px] bg-white px-2 py-1 rounded border border-blue-200 text-blue-900 font-mono">
+                        {folderId}
+                      </code>
+                    </div>
+                  )}
+                </div>
+                <a
+                  href={'https://drive.google.com/drive/folders/' + (createdContractFolderId || folderId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium mt-2"
+                >
+                  <FolderOpen size={13} />
+                  Mở thư mục trên Google Drive
+                </a>
+              </div>
+            )}
+
             <div className="flex flex-col gap-2.5">
               {/* Nút 1: Đóng */}
               <button
@@ -343,6 +405,7 @@ export default function NewContractPage() {
                   setFile(null);
                   setTemplateId('');
                   setCustomFields({});
+                  setFolderId('');
                 }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
               >

@@ -28,7 +28,7 @@ export default function TemplatesPage() {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  async function fetchData() {
     try {
       setLoading(true);
       const data = await getTemplates();
@@ -38,7 +38,7 @@ export default function TemplatesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   // Mở chế độ Chỉnh sửa mẫu
   const handleEditClick = (tpl: ContractTemplate) => {
@@ -109,8 +109,9 @@ export default function TemplatesPage() {
 
       handleCancelEdit();
       fetchData();
-    } catch (err: any) {
-      alert('Lỗi: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Không xác định';
+      alert('Lỗi: ' + message);
     }
   };
 
@@ -126,28 +127,28 @@ export default function TemplatesPage() {
   });
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12 p-4">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 pb-12 p-3 sm:p-4">
       <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600">
           <ArrowLeft size={16} /> Quay lại Danh sách Hợp đồng
         </Link>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-            <FileCode size={28} />
+      <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="p-2 sm:p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <FileCode size={24} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-900">Quản Lý Mẫu Hợp Đồng</h1>
-            <p className="text-xs text-slate-500">Thiết lập & chỉnh sửa mẫu Google Docs, Custom Fields</p>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900">Quản Lý Mẫu Hợp Đồng</h1>
+            <p className="text-[10px] sm:text-xs text-slate-500">Thiết lập & chỉnh sửa mẫu Google Docs, Custom Fields</p>
           </div>
         </div>
       </div>
 
       {/* FORM TẠO / SỬA MẪU HỢP ĐỒNG */}
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-        <div className="flex items-center justify-between border-b pb-3">
+      <form onSubmit={handleSubmit} className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-3">
           <h2 className="text-base font-bold text-slate-800">
             {editingId ? '✏️ Chỉnh Sửa Mẫu Hợp Đồng' : '➕ Thêm Mẫu Hợp Đồng Mới'}
           </h2>
@@ -162,7 +163,7 @@ export default function TemplatesPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Tên Mẫu Hợp Đồng *</label>
             <input
@@ -236,7 +237,7 @@ export default function TemplatesPage() {
             />
             <select
               value={fieldType}
-              onChange={(e: any) => setFieldType(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFieldType(e.target.value as 'text' | 'number' | 'date')}
               className="p-2 bg-white border border-slate-200 rounded-xl text-xs outline-none"
             >
               <option value="text">Chữ (Text)</option>
