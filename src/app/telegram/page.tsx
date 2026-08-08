@@ -123,12 +123,17 @@ export default function TelegramPage() {
         .replace(/{link_file}/g, 'https://example.com/sample.pdf');
 
       // Gửi qua API Route nội bộ (server-side) để giữ Bot Token an toàn
+      // Đính kèm Authorization header (Supabase Anon Key) theo chuẩn authenticated endpoint
       const res = await fetch('/api/telegram/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+        },
         body: JSON.stringify({
           chatId,
           text: `[TIN NHẮN THỬ NGHIỆM]\n\n${testText}`,
+          botToken,
         }),
       });
 
