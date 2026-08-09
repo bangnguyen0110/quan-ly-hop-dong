@@ -296,7 +296,7 @@ export default function TelegramPage() {
     setTestingCron(true);
     setCronTestResult(null);
     try {
-      const res = await fetch('/api/cron/check-expiration');
+      const res = await fetch('/api/cron/check-expiration?force=true');
       const data = await res.json().catch(() => ({}));
       setCronTestResult(JSON.stringify(data, null, 2));
     } catch (err: unknown) {

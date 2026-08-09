@@ -35,6 +35,8 @@ export interface Contract {
   file_url?: string;
   status: string;
   custom_notify_days: number[];
+  // Mốc ngày báo trước hết hạn (mặc định "1,7,30"), lưu dạng TEXT hoặc INT[]
+  notify_days?: string | number[] | null;
   category_id?: string;
   category?: Category;
   custom_fields?: Record<string, unknown>; // Lưu dữ liệu trường động JSONB
