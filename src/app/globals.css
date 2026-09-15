@@ -28,6 +28,14 @@ body {
   padding:50px 0 0;
 }
 
+button.w-full.flex.items-center.justify-between span {
+    color: #fff;
+}
+
+button.inline-flex.items-center.justify-center.w-10.h-10.rounded-xl.hover\:bg-slate-100.transition.text-slate-700 {
+    display: none;
+}
+
 .bg-white.p-8.rounded-2xl.border.border-slate-200.shadow-sm.max-w-md.w-full.space-y-6 {
     padding: 20px;
 }
@@ -43,4 +51,7 @@ textarea, input, option, select, span{
 
 button.flex.items-center.gap-2.px-3.py-2.bg-emerald-600.text-white.rounded-xl.text-sm.font-medium.hover\:bg-emerald-700.transition.disabled\:opacity-60 {
     display: none;
+}
+button.w-full.flex.items-center.justify-between.gap-3.px-4.py-3.rounded-xl.font-medium.text-sm.transition-all.bg-blue-600\/20.text-blue-300 span {
+    color: #8ec5ff;
 }
